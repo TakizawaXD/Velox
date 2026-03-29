@@ -18,6 +18,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { seedDemoData } from '@/lib/seeds';
 import { toast } from 'react-hot-toast';
+import { SEO } from '@/components/common/SEO';
 
 interface OrderData {
   id: string;
@@ -61,6 +62,11 @@ export function Dashboard() {
   const [chartData, setChartData] = useState<any[]>([]);
   const [recentOrders, setRecentOrders] = useState<OrderData[]>([]);
   const [isSeeding, setIsSeeding] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleSeed = async () => {
     if (!currentUser) return;
@@ -153,6 +159,7 @@ export function Dashboard() {
 
   return (
     <div className="space-y-8 pb-12">
+      <SEO title="Dashboard" />
       {/* Header with Glassmorphism */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
@@ -283,9 +290,10 @@ export function Dashboard() {
                 </Button>
               </div>
             ) : (
-              <div className="h-[350px] min-h-[350px] w-full relative">
-                <ResponsiveContainer width="99%" height="100%">
-                  <AreaChart data={chartData}>
+              <div className="h-[350px] w-full relative">
+                {isMounted && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
                     <defs>
                       <linearGradient id="colorPed" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -325,8 +333,9 @@ export function Dashboard() {
                     />
                   </AreaChart>
                 </ResponsiveContainer>
-              </div>
-            )}
+              )}
+            </div>
+          )}
           </div>
         </Card>
 

@@ -3,10 +3,12 @@ import { Navbar } from '@/components/marketing/Navbar';
 import { Footer } from '@/components/marketing/Footer';
 import { Mail, Phone, MapPin, Send, MessageCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { SEO } from '@/components/common/SEO';
 
 export function Contact() {
   return (
-    <div className="bg-background min-h-screen text-text selection:bg-primary/30">
+    <div className="bg-[#000] min-h-screen text-text selection:bg-primary/30 font-inter">
+      <SEO title="Contacto" />
       <Navbar />
       <main className="pt-40 pb-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

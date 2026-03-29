@@ -13,6 +13,7 @@ import {
   Package, MapPin, Clock, CheckCircle2, 
   Truck, ArrowLeft, Phone, Info, Navigation
 } from 'lucide-react';
+import { SEO } from '@/components/common/SEO';
 
 // Fix Leaflet icons
 // @ts-ignore
@@ -115,25 +116,29 @@ export function PublicTracking() {
   const progress = ((currentStep + 1) / steps.length) * 100;
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-text selection:bg-primary/30">
+    <div className="min-h-screen bg-[#000] text-text selection:bg-primary/30 font-inter">
+      <SEO title="Rastreo de Pedido" />
+      
       {/* Background patterns */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent/20 blur-[120px] rounded-full" />
+      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-5">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-white/20 blur-[120px] rounded-full" />
       </div>
 
-      <div className="relative max-w-2xl mx-auto px-4 py-12 lg:py-20">
+      <div className="relative max-w-2xl mx-auto px-6 py-16 lg:py-24">
         {/* Header Branding */}
-        <div className="flex flex-col items-center mb-12 text-center">
+        <div className="flex flex-col items-center mb-16 text-center">
           <motion.div 
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent shadow-neon-blue mb-4"
+            className="flex h-16 w-16 items-center justify-center rounded-[24px] bg-white shadow-2xl mb-8"
           >
-            <Package className="h-6 w-6 text-white" />
+            <Package className="h-8 w-8 text-black" />
           </motion.div>
-          <h1 className="text-3xl font-black tracking-tight text-white mb-1">Rastreo de Pedido</h1>
-          <p className="text-textMuted font-medium text-sm">Logística Inteligente by Velox</p>
+          <h1 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none mb-4">Rastreo<span className="text-primary italic">.</span></h1>
+          <div className="flex items-center gap-3">
+             <Badge variant="primary" className="text-[10px] font-black uppercase tracking-widest px-4 border-white/10">Live Tracking</Badge>
+             <span className="text-[10px] font-black text-textMuted uppercase tracking-[0.4em]">Velox Technologies</span>
+          </div>
         </div>
 
         <motion.div

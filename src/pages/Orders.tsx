@@ -13,8 +13,11 @@ import {
 } from 'lucide-react';
 import { collection, onSnapshot, query, where, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { SEO } from '@/components/common/SEO';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
+import { ExportMenu } from '@/components/ui/ExportMenu';
+import { exportOrders } from '@/lib/exportUtils';
 
 const PAYMENT_METHODS = ['Efectivo (al recibir)', 'Nequi', 'Daviplata', 'Transferencia Bancaria', 'Contraentrega Datáfono'];
 const SERVICE_TYPES = ['Estándar', 'Express (Premium)', 'Económico'];
@@ -199,14 +202,22 @@ export function Orders() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      <SEO title="Pedidos" />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-text tracking-tight">Gestión de Despachos</h1>
           <p className="text-textMuted text-sm">Control centralizado de recolecciones y entregas.</p>
         </div>
-        <Button className="shadow-neon-blue gap-2" onClick={() => handleOpenModal()}>
-          <Plus size={18} /> Crear Envío
-        </Button>
+        <div className="flex items-center gap-3">
+          <ExportMenu
+            disabled={orders.length === 0}
+            onExportExcel={() => exportOrders.csv(filteredOrders)}
+            onExportPDF={() => exportOrders.pdf(filteredOrders)}
+          />
+          <Button className="shadow-neon-blue gap-2" onClick={() => handleOpenModal()}>
+            <Plus size={18} /> Crear Envío
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">

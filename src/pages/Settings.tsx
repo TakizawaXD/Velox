@@ -13,6 +13,7 @@ import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCre
 import { db, auth } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { SEO } from '@/components/common/SEO';
 
 type Tab = 'perfil' | 'organizacion' | 'notificaciones' | 'seguridad' | 'facturacion';
 
@@ -209,15 +210,19 @@ export function Settings() {
   const inputClass = "w-full rounded-xl border border-white/10 bg-surface/50 py-3 px-4 text-text placeholder:text-textMuted/40 focus:border-primary/50 focus:bg-surface focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all font-medium text-sm shadow-sm";
 
   return (
-    <div className="space-y-10 max-w-6xl mx-auto pb-20 px-4 sm:px-0">
+    <div className="space-y-12 max-w-6xl mx-auto pb-32 px-4 sm:px-0 font-inter">
+      <SEO title="Configuración Supreme" />
       
       {/* Dynamic Header */}
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between border-b border-white/5 pb-10">
-        <div className="space-y-2">
-          <Badge variant="primary" className="mb-2">Centro de Configuración</Badge>
-          <h1 className="text-4xl font-black text-text tracking-tight">Preferencias del Sistema</h1>
-          <p className="text-textMuted text-base max-w-xl font-medium">
-            Control total sobre tu experiencia en <span className="text-primary">Velox</span>. Gestiona identidad, flota y seguridad.
+      <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between border-b border-white/5 pb-12">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+             <Badge variant="primary" className="text-[10px] font-black uppercase tracking-widest px-4 py-1.5 border-white/10 rounded-full">System Alpha</Badge>
+             <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.5em]">v4.0.0 Stable</span>
+          </div>
+          <h1 className="text-6xl font-black text-white tracking-tighter uppercase italic leading-none">Ajustes<span className="text-primary italic">.</span></h1>
+          <p className="text-textMuted text-lg font-medium max-w-xl leading-tight">
+             Gestión de Identidad, Infraestructura y Seguridad Operativa en <span className="text-white italic font-black uppercase tracking-tighter">Velox.</span>
           </p>
         </div>
         

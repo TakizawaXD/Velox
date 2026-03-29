@@ -118,6 +118,26 @@ export async function seedDemoData(tenantId: string) {
     
     await updateDoc(ref, { id: `ORD-${ref.id.substring(0, 6).toUpperCase()}` });
     results.orders.push(ref.id);
+
+    // 4. Seed Invoice for this Order
+    const subtotal = amount;
+    const iva = Math.floor(subtotal * 0.19);
+    const total = subtotal + iva;
+    const status_inv = ['Pagada', 'Pendiente', 'Vencida'][Math.floor(Math.random() * 3)];
+
+    await addDoc(collection(db, 'invoices'), {
+      invoiceNumber: `VX-2026-${ref.id.substring(0, 5).toUpperCase()}`,
+      orderId: ref.id,
+      clientName: customer.name,
+      clientId: customer.idNumber,
+      subtotal,
+      iva,
+      total,
+      status: status_inv,
+      dueDate: Timestamp.fromDate(new Date(date.getTime() + (30 * 24 * 60 * 60 * 1000))), // 30 days due
+      tenantId,
+      createdAt: Timestamp.fromDate(date),
+    });
   }
 
   return results;

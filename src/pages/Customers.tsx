@@ -11,6 +11,9 @@ import { collection, onSnapshot, query, where, addDoc, updateDoc, deleteDoc, doc
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
+import { SEO } from '@/components/common/SEO';
+import { ExportMenu } from '@/components/ui/ExportMenu';
+import { exportCustomers } from '@/lib/exportUtils';
 
 const CIUDADES_CO = [
   'Bogotá D.C.', 'Medellín', 'Cali', 'Barranquilla', 'Cartagena de Indias',
@@ -132,14 +135,22 @@ export function Customers() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      <SEO title="Clientes" />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-text">Directorio de Clientes</h1>
           <p className="text-textMuted text-sm">Gestiona la base de datos de tus clientes recurrentes.</p>
         </div>
-        <Button className="gap-2 shadow-neon-blue" onClick={() => handleOpenModal()}>
-          <Plus size={18} /> Nuevo Cliente
-        </Button>
+        <div className="flex items-center gap-3">
+          <ExportMenu
+            disabled={customers.length === 0}
+            onExportExcel={() => exportCustomers.csv(filteredCustomers)}
+            onExportPDF={() => exportCustomers.pdf(filteredCustomers)}
+          />
+          <Button className="gap-2 shadow-neon-blue" onClick={() => handleOpenModal()}>
+            <Plus size={18} /> Nuevo Cliente
+          </Button>
+        </div>
       </div>
 
       <div className="relative">

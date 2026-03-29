@@ -2,10 +2,12 @@ import { motion } from 'framer-motion';
 import { Navbar } from '@/components/marketing/Navbar';
 import { Footer } from '@/components/marketing/Footer';
 import { Lock } from 'lucide-react';
+import { SEO } from '@/components/common/SEO';
 
 export function Privacy() {
   return (
     <div className="bg-[#000] min-h-screen text-text selection:bg-primary/30 font-inter">
+       <SEO title="Privacidad" />
        <Navbar />
        <main className="pt-48 pb-32">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">

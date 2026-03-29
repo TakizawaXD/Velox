@@ -5,10 +5,11 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { Box, Navigation, Info, Maximize, Target, Phone, User } from 'lucide-react';
+import { Box, Info, Maximize, Target, Phone, User } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
+import { SEO } from '@/components/common/SEO';
 
 // Fix for default marker icons in Leaflet with React
 // @ts-ignore
@@ -118,13 +119,13 @@ export function MapView() {
   }, [drivers, orders, location.state, hasReferencedDriver]);
 
   return (
-    <div className="h-[calc(100vh-140px)] flex flex-col gap-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="h-[calc(100vh-140px)] flex flex-col gap-8 font-inter">
+      <SEO title="Logística en Vivo" />
+      
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-1">
         <div>
-          <h1 className="text-3xl font-black text-text tracking-tight flex items-center gap-3">
-             Mapa Operacional <Navigation size={24} className="text-primary" />
-          </h1>
-          <p className="text-textMuted text-sm font-medium">Seguimiento en vivo de la red Velox en Colombia.</p>
+          <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">Mapa<span className="text-primary italic">.</span></h1>
+          <p className="text-textMuted text-[10px] font-black uppercase tracking-[0.3em] mt-1">Soberanía de Datos en Tiempo Real</p>
         </div>
         
         <div className="flex items-center gap-2">

@@ -19,6 +19,8 @@ import { Support } from './pages/Support';
 import { Terms } from './pages/Terms';
 import { Privacy } from './pages/Privacy';
 import { Cookies } from './pages/Cookies';
+import { Invoices } from './pages/Invoices';
+import { Billing } from './pages/Billing';
 import { NotFound } from '@/pages/NotFound';
 import { PublicTracking } from '@/pages/PublicTracking';
 import { useAuth } from '@/context/AuthContext';
@@ -87,6 +89,8 @@ export default function App() {
             <Route path="/drivers" element={<Drivers />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/analytics" element={<Analytics />} />
+            <Route path="/invoices" element={<Invoices />} />
+            <Route path="/billing" element={<Billing />} />
             <Route path="/users" element={<Users />} />
             <Route path="/settings" element={<Settings />} />
           </Route>

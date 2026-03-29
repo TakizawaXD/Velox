@@ -1,8 +1,10 @@
+import { useState, useRef } from 'react';
 import { motion, useScroll } from 'framer-motion';
-import { useRef } from 'react';
 import { Navbar } from '@/components/marketing/Navbar';
 import { Footer } from '@/components/marketing/Footer';
+import { CheckoutModal } from '@/components/marketing/CheckoutModal';
 import { Button } from '@/components/ui/Button';
+import { SEO } from '@/components/common/SEO';
 import { Link } from 'react-router-dom';
 import { 
   MapPin, ArrowRight, CheckCircle2, Layers, 
@@ -10,7 +12,15 @@ import {
 } from 'lucide-react';
 
 export default function Home() {
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  const handleOpenCheckout = (plan: any) => {
+    setSelectedPlan(plan);
+    setIsCheckoutOpen(true);
+  };
+
   useScroll({
     target: containerRef,
     offset: ["start start", "end end"]
@@ -26,6 +36,12 @@ export default function Home() {
   return (
     <div ref={containerRef} className="bg-[#000] min-h-screen text-text overflow-x-hidden selection:bg-primary/30 selection:text-white font-inter">
       <Navbar />
+      <SEO title="Inicio" />
+      <CheckoutModal 
+        isOpen={isCheckoutOpen} 
+        onClose={() => setIsCheckoutOpen(false)} 
+        plan={selectedPlan} 
+      />
 
       {/* Hero Section - Supreme Word Reveal */}
       <section className="relative min-h-screen flex flex-col items-center justify-center pt-32 pb-20 px-4 text-center overflow-hidden">
@@ -282,7 +298,11 @@ export default function Home() {
                   ))}
                 </div>
 
-                <Button variant={plan.popular ? 'premium' : 'outline'} className="w-full h-16 rounded-2xl font-black text-xs tracking-widest uppercase">
+                <Button 
+                  variant={plan.popular ? 'premium' : 'outline'} 
+                  className="w-full h-16 rounded-2xl font-black text-xs tracking-widest uppercase"
+                  onClick={() => handleOpenCheckout(plan)}
+                >
                   Solicitar {plan.name}
                 </Button>
               </motion.div>

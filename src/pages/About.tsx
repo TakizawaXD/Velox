@@ -3,10 +3,12 @@ import { Navbar } from '@/components/marketing/Navbar';
 import { Footer } from '@/components/marketing/Footer';
 import { Shield, Target, Globe, Zap, ArrowRight, BarChart } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { SEO } from '@/components/common/SEO';
 
 export function About() {
   return (
     <div className="bg-[#000] min-h-screen text-text selection:bg-primary/30 font-inter">
+      <SEO title="Nosotros" />
       <Navbar />
       
       <main className="pt-48 pb-32">

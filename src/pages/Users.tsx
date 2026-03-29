@@ -3,15 +3,17 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
-import { Edit2, Trash2, UserPlus, Shield, Activity } from 'lucide-react';
+import { Edit2, Trash2, UserPlus, Shield } from 'lucide-react';
 import { collection, onSnapshot, query, where, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { Modal } from '@/components/ui/Modal';
 import { toast } from 'react-hot-toast';
+import { SEO } from '@/components/common/SEO';
+import { TableRowSkeleton } from '@/components/common/SkeletonLoaders';
 
-const inputCls = 'w-full rounded-xl border border-white/10 bg-surface/60 py-2.5 px-3 text-sm text-text placeholder:text-textMuted/60 focus:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all';
-const labelCls = 'block text-xs font-semibold text-textMuted uppercase tracking-wider mb-1.5';
+const inputCls = 'w-full rounded-xl border border-white/5 bg-white/5 py-3 px-4 text-sm text-text focus:border-primary/50 focus:outline-none transition-all';
+const labelCls = 'block text-[10px] font-black text-textMuted uppercase tracking-widest mb-2 ml-1';
 
 function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return <div><label className={labelCls}>{label}</label>{children}</div>;
@@ -102,91 +104,99 @@ export function Users() {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-8 max-w-6xl mx-auto font-inter">
+      <SEO title="Gestión de Equipo" />
+      
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between px-1">
         <div>
-          <h1 className="text-3xl font-bold text-text">Equipo y Accesos</h1>
-          <p className="text-textMuted">Administra los miembros de tu organización B2B.</p>
+          <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">Equipo<span className="text-primary italic">.</span></h1>
+          <p className="text-textMuted text-[10px] font-black uppercase tracking-[0.3em] mt-1">Control de Accesos Corporativos</p>
         </div>
-        <Button className="gap-2 shadow-neon-blue" onClick={() => handleOpenModal()}>
+        <Button className="gap-3 shadow-neon-blue rounded-2xl py-7 px-8 font-black uppercase text-[11px] tracking-widest bg-white text-black hover:bg-white/90" onClick={() => handleOpenModal()}>
           <UserPlus size={18} /> Invitar Miembro
         </Button>
       </div>
 
-      <Card className="glass-panel overflow-hidden p-0 border-white/5 relative min-h-[400px]">
-        {isLoading ? (
-          <div className="absolute inset-0 flex items-center justify-center text-textMuted">
-            <Activity className="animate-spin text-primary mr-2" size={20} /> Recuperando roles y accesos...
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Miembro</TableHead>
-                <TableHead>Organización</TableHead>
-                <TableHead>Rol Asignado</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id} className="group hover:bg-surfaceHover/30 transition-colors">
-                  <TableCell className="font-medium flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-surfaceHover border border-white/10 flex items-center justify-center font-bold text-primary shadow-inner">
-                      {user.name?.charAt(0) || 'U'}
-                    </div>
-                    <div>
-                      <p className="text-text font-medium">{user.name}</p>
-                      <p className="text-xs text-textMuted">{user.email}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-textMuted">{user.company || 'N/A'}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5">
-                      <Shield size={14} className={user.role?.includes('Administrador') ? 'text-accent' : 'text-textMuted'} />
-                      <span className={user.role?.includes('Administrador') ? 'text-accent font-medium text-sm' : 'text-textMuted text-sm'}>
-                        {user.role || 'Usuario'}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={user.status === 'Activo' ? 'success' : 'default'}>{user.status || 'Pendiente'}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleOpenModal(user)}>
-                        <Edit2 size={16} />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-danger" onClick={() => handleDelete(user.id)}>
-                        <Trash2 size={16} />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {users.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-20 text-textMuted">No se encontró perfiles asociados al Tenant.</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        )}
+      <Card className="glass-panel overflow-hidden p-0 border-white/5 bg-surface/30 rounded-[32px] min-h-[400px]">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent border-white/5">
+              <TableHead className="text-[10px] uppercase font-black tracking-widest text-textMuted py-7 pl-8">Miembro</TableHead>
+              <TableHead className="text-[10px] uppercase font-black tracking-widest text-textMuted py-7">Organización</TableHead>
+              <TableHead className="text-[10px] uppercase font-black tracking-widest text-textMuted py-7">Rol Asignado</TableHead>
+              <TableHead className="text-[10px] uppercase font-black tracking-widest text-textMuted py-7">Estado</TableHead>
+              <TableHead className="text-[10px] uppercase font-black tracking-widest text-textMuted py-7 pr-8 text-right">Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+               [...Array(5)].map((_, i) => (
+                 <TableRow key={i} className="hover:bg-transparent border-white/5">
+                    <TableCell colSpan={5} className="p-0"><TableRowSkeleton /></TableCell>
+                 </TableRow>
+               ))
+            ) : (
+              <>
+                {users.map((user) => (
+                  <TableRow key={user.id} className="group hover:bg-white/[0.02] transition-colors border-white/5">
+                    <TableCell className="font-medium flex items-center gap-4 py-5 pl-8">
+                      <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center font-black text-primary text-lg">
+                        {user.name?.charAt(0) || 'U'}
+                      </div>
+                      <div>
+                        <p className="text-white font-black uppercase text-xs tracking-tight">{user.name}</p>
+                        <p className="text-[10px] text-textMuted font-bold">{user.email}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-textMuted font-medium text-xs uppercase tracking-wider">{user.company || 'N/A'}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Shield size={14} className={user.role?.includes('Administrador') ? 'text-primary' : 'text-textMuted'} />
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${user.role?.includes('Administrador') ? 'text-primary' : 'text-textMuted'}`}>
+                          {user.role || 'Usuario'}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={user.status === 'Activo' ? 'success' : 'default'} className="text-[9px] font-black tracking-widest">
+                        {user.status?.toUpperCase() || 'PENDIENTE'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right pr-8">
+                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl bg-white/5 text-primary border border-white/5 hover:bg-white/10" onClick={() => handleOpenModal(user)}>
+                          <Edit2 size={16} />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl bg-white/5 text-danger border border-white/5 hover:bg-danger/10" onClick={() => handleDelete(user.id)}>
+                          <Trash2 size={16} />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {users.length === 0 && (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={5} className="text-center py-32 text-textMuted font-black uppercase text-[10px] tracking-[0.5em] opacity-40">No se encontró perfiles asociados al Tenant.</TableCell>
+                  </TableRow>
+                )}
+              </>
+            )}
+          </TableBody>
+        </Table>
       </Card>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={isEditing ? 'Editar Usuario' : 'Invitar Nuevo Miembro'}>
-        <form onSubmit={handleSave} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FieldGroup label="Nombre Completo *"><input required className={inputCls} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} /></FieldGroup>
-            <FieldGroup label="Email *"><input required className={inputCls} type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} /></FieldGroup>
-            <FieldGroup label="Compañía"><input className={inputCls} value={formData.company} onChange={e => setFormData({ ...formData, company: e.target.value })} /></FieldGroup>
-            <FieldGroup label="Rol *"><select className={inputCls} value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })}>{ROLES.map(r => <option key={r} value={r}>{r}</option>)}</select></FieldGroup>
-            <FieldGroup label="Estado *"><select className={inputCls} value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>{ESTADOS.map(s => <option key={s} value={s}>{s}</option>)}</select></FieldGroup>
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={isEditing ? 'Editar Perfil' : 'Invitar Miembro'}>
+        <form onSubmit={handleSave} className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FieldGroup label="Nombre y Apellido *"><input required className={inputCls} placeholder="Ej. Juan Pérez" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} /></FieldGroup>
+            <FieldGroup label="Email de Acceso *"><input required className={inputCls} type="email" placeholder="email@empresa.com" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} /></FieldGroup>
+            <FieldGroup label="Empresa / División"><input className={inputCls} placeholder="Nombre Corporativo" value={formData.company} onChange={e => setFormData({ ...formData, company: e.target.value })} /></FieldGroup>
+            <FieldGroup label="Rol de Sistema *"><select className={inputCls} value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })}>{ROLES.map(r => <option key={r} value={r} className="bg-black text-white">{r}</option>)}</select></FieldGroup>
+            <FieldGroup label="Estado Maestro *"><select className={inputCls} value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>{ESTADOS.map(s => <option key={s} value={s} className="bg-black text-white">{s}</option>)}</select></FieldGroup>
           </div>
-          <div className="flex gap-3 justify-end pt-4 border-t border-white/5">
-            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-            <Button type="submit" isLoading={isSaving} className="shadow-neon-blue">{isEditing ? 'Guardar Cambios' : 'Crear Usuario'}</Button>
+          <div className="flex gap-4 justify-end pt-6 border-t border-white/5">
+            <Button type="button" variant="outline" className="rounded-xl font-bold uppercase text-[10px] tracking-widest border-white/10" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
+            <Button type="submit" isLoading={isSaving} className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest bg-primary shadow-neon-blue">{isEditing ? 'Confirmar Cambios' : 'Enviar Invitación'}</Button>
           </div>
         </form>
       </Modal>

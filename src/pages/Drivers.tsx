@@ -14,6 +14,9 @@ import { collection, onSnapshot, query, updateDoc, doc, addDoc, where, deleteDoc
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
+import { SEO } from '@/components/common/SEO';
+import { ExportMenu } from '@/components/ui/ExportMenu';
+import { exportDrivers } from '@/lib/exportUtils';
 
 const TIPOS_VEHICULO = [
   'Moto (≤ 125cc)', 'Moto (> 125cc)', 'Bicicleta', 'Bicicleta Eléctrica',
@@ -190,15 +193,23 @@ export function Drivers() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      <SEO title="Repartidores" />
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-text tracking-tight">Flota de Repartidores</h1>
           <p className="text-textMuted text-sm font-medium">Gestión de conductores y mensajeros en Colombia</p>
         </div>
-        <Button className="shadow-neon-blue gap-2" onClick={() => { setIsEditing(false); setNewDriver(emptyDriver); setIsModalOpen(true); }}>
-          <UserPlus size={16} /> Añadir Repartidor
-        </Button>
+        <div className="flex items-center gap-3">
+          <ExportMenu
+            disabled={drivers.length === 0}
+            onExportExcel={() => exportDrivers.csv(filteredDrivers)}
+            onExportPDF={() => exportDrivers.pdf(filteredDrivers)}
+          />
+          <Button className="shadow-neon-blue gap-2" onClick={() => { setIsEditing(false); setNewDriver(emptyDriver); setIsModalOpen(true); }}>
+            <UserPlus size={16} /> Añadir Repartidor
+          </Button>
+        </div>
       </div>
 
       {/* Search */}

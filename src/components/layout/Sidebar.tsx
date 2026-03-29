@@ -3,7 +3,8 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   LayoutDashboard, Package, Map as MapIcon, Users,
-  Settings, LogOut, UserCircle, X, BarChart2
+  Settings, LogOut, UserCircle, X, BarChart2,
+  CreditCard, Wallet
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -22,6 +23,8 @@ const navItems = [
   { icon: UserCircle, label: 'Repartidores', path: '/drivers' },
   { icon: Users, label: 'Clientes', path: '/customers' },
   { icon: BarChart2, label: 'Analíticas', path: '/analytics' },
+  { icon: CreditCard, label: 'Facturación', path: '/invoices' },
+  { icon: Wallet, label: 'Pagos', path: '/billing' },
   { icon: Settings, label: 'Configuración', path: '/settings' },
 ];
 

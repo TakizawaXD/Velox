@@ -214,30 +214,30 @@ export function Dashboard() {
         ))}
       </div>
 
-      {/* Optimization Suite - NEW */}
+      {/* Operatividad de Flota */}
       <motion.div 
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         className="grid grid-cols-1 md:grid-cols-3 gap-6"
       >
-        <Card className="md:col-span-2 glass-panel border-primary/20 bg-primary/5 p-6 flex flex-col md:flex-row items-center gap-6">
-           <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0 animate-pulse">
-              <Zap size={32} />
+        <Card className="md:col-span-2 glass-panel border-white/5 bg-surface/30 p-6 flex flex-col md:flex-row items-center gap-6 group hover:border-primary/20 transition-all">
+           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+              <Activity size={32} />
            </div>
            <div className="flex-1 text-center md:text-left">
-              <h3 className="text-lg font-black text-text uppercase tracking-tighter">Suite de Optimización Activa</h3>
-              <p className="text-sm text-textMuted mt-1">Velox AI ha identificado un <b>14% de ahorro potencial</b> en tus rutas actuales.</p>
+              <h3 className="text-lg font-black text-text uppercase tracking-tighter">Eficiencia de Flota</h3>
+              <p className="text-sm text-textMuted mt-1">Monitoreo de rendimiento basado en entregas completadas y tiempos de respuesta.</p>
               <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-4">
                  <div className="px-3 py-1.5 bg-surface rounded-xl border border-white/10 text-[10px] font-bold text-success flex items-center gap-1.5">
-                    <TrendingUp size={12} /> +15.2% Rentabilidad
+                    <CheckCircle2 size={12} /> Operación Estable
                  </div>
                  <div className="px-3 py-1.5 bg-surface rounded-xl border border-white/10 text-[10px] font-bold text-primary flex items-center gap-1.5">
-                    <Truck size={12} /> 22.4km Optimizados
+                    <Truck size={12} /> Flota activa
                  </div>
               </div>
            </div>
-           <Button variant="outline" className="border-primary/30 text-primary uppercase font-bold text-[10px] tracking-widest">
-              Aplicar Inteligencia
+           <Button variant="outline" onClick={() => navigate('/map')} className="border-white/10 text-white uppercase font-bold text-[10px] tracking-widest hover:border-primary/50">
+              Ver Mapa en Vivo
            </Button>
         </Card>
         

@@ -11,6 +11,8 @@ import { Customers } from '@/pages/Customers';
 import { Settings } from '@/pages/Settings';
 import { Register } from '@/pages/Register';
 import { Analytics } from '@/pages/Analytics';
+import { NotFound } from '@/pages/NotFound';
+import { PublicTracking } from '@/pages/PublicTracking';
 import { useAuth } from '@/context/AuthContext';
 import { Toaster } from 'react-hot-toast';
 
@@ -54,6 +56,10 @@ export default function App() {
             path="/register" 
             element={currentUser ? <Navigate to="/dashboard" replace /> : <Register />} 
           />
+          <Route 
+            path="/track/:orderId" 
+            element={<PublicTracking />} 
+          />
           
           <Route 
             element={
@@ -72,6 +78,8 @@ export default function App() {
             <Route path="/users" element={<Users />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
+
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </>

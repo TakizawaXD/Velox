@@ -26,6 +26,11 @@ export function Analytics() {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<'semana' | 'mes'>('semana');
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -194,14 +199,14 @@ export function Analytics() {
             <h3 className="font-semibold text-text">Volumen de Pedidos</h3>
             <Badge variant="primary" className="text-[10px]">TIEMPO REAL</Badge>
           </div>
-          {total === 0 ? (
+          {!isMounted || total === 0 ? (
             <div className="h-60 flex flex-col items-center justify-center text-textMuted gap-2">
               <BarChart2 size={36} className="opacity-20" />
               <p className="text-sm">Registra pedidos para ver la gráfica</p>
             </div>
           ) : (
-            <div className="h-60 min-h-[240px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-60 min-h-[240px] w-full overflow-hidden relative">
+              <ResponsiveContainer width="100%" height="100%" debounce={100}>
                 <AreaChart data={volumeData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="gPedidos" x1="0" y1="0" x2="0" y2="1">
@@ -229,11 +234,11 @@ export function Analytics() {
         {/* Dona: estados */}
         <Card className="glass-panel">
           <h3 className="font-semibold text-text mb-4">Distribución por Estado</h3>
-          {pieData.length === 0 ? (
+          {!isMounted || pieData.length === 0 ? (
             <div className="h-60 flex items-center justify-center text-textMuted text-sm">Sin datos</div>
           ) : (
-            <div className="h-60 min-h-[240px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-60 min-h-[240px] w-full overflow-hidden relative">
+              <ResponsiveContainer width="100%" height="100%" debounce={100}>
                 <PieChart>
                   <Pie
                     data={pieData} cx="50%" cy="45%" innerRadius={55} outerRadius={85}
@@ -260,11 +265,11 @@ export function Analytics() {
             Total: <span className="text-success font-bold">${revenue.toLocaleString('es-CO')}</span>
           </span>
         </div>
-        {total === 0 ? (
+        {!isMounted || total === 0 ? (
           <div className="h-52 flex items-center justify-center text-textMuted text-sm">Sin ingresos registrados</div>
         ) : (
-          <div className="h-52 min-h-[208px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <div className="h-52 min-h-[208px] w-full overflow-hidden relative">
+              <ResponsiveContainer width="100%" height="100%" debounce={100}>
               <BarChart data={volumeData} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                 <XAxis dataKey="name" stroke="#71717a" fontSize={11} tickLine={false} axisLine={false} />

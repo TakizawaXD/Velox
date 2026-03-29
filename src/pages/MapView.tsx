@@ -88,17 +88,34 @@ export function MapView() {
     return () => { unsubO(); unsubD(); };
   }, [currentUser]);
 
-  // Handle focused driver from navigation state
+  // Handle focused entity from navigation state (Mobile optimization)
   useEffect(() => {
-    if (drivers.length > 0 && location.state?.selectedDriverId && !hasReferencedDriver) {
-      const target = drivers.find(d => d.id === location.state.selectedDriverId);
-      if (target && target.lat && target.lng) {
-        setMapCenter([target.lat, target.lng]);
-        setZoom(16);
-        setHasReferencedDriver(true);
+    if (location.state && !hasReferencedDriver) {
+      if (location.state.selectedDriverId && drivers.length > 0) {
+        const target = drivers.find(d => d.id === location.state.selectedDriverId);
+        if (target && target.lat && target.lng) {
+          setMapCenter([target.lat, target.lng]);
+          setZoom(17);
+          setHasReferencedDriver(true);
+        }
+      } else if (location.state.selectedOrderId && orders.length > 0) {
+        const target = orders.find(o => o.id === location.state.selectedOrderId);
+        if (target && target.lat && target.lng) {
+          setMapCenter([target.lat, target.lng]);
+          setZoom(17);
+          setHasReferencedDriver(true);
+        }
+      } else if (location.state.selectedCustomerId && orders.length > 0) {
+        // Focus on the most recent order for this customer
+        const target = orders.find(o => o.clientId === location.state.selectedCustomerId);
+        if (target && target.lat && target.lng) {
+          setMapCenter([target.lat, target.lng]);
+          setZoom(17);
+          setHasReferencedDriver(true);
+        }
       }
     }
-  }, [drivers, location.state, hasReferencedDriver]);
+  }, [drivers, orders, location.state, hasReferencedDriver]);
 
   return (
     <div className="h-[calc(100vh-140px)] flex flex-col gap-6">
@@ -120,7 +137,7 @@ export function MapView() {
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
         
         {/* Map Container */}
-        <Card className="lg:col-span-9 glass-panel p-0 relative overflow-hidden border-white/5 shadow-2xl">
+        <Card className="lg:col-span-9 glass-panel p-0 relative overflow-hidden border-white/5 shadow-2xl min-h-[450px] lg:min-h-0">
           <MapContainer 
             center={mapCenter} 
             zoom={zoom} 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -8,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { 
   Search, Plus, Filter, 
   MapPin, Clock, Truck,
-  Edit2, Trash2, User
+  Edit2, Trash2, User, Navigation, Package
 } from 'lucide-react';
 import { collection, onSnapshot, query, where, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -50,6 +51,7 @@ const emptyOrder = {
 
 export function Orders() {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -160,9 +162,10 @@ export function Orders() {
   };
 
   const copyTrackingLink = (id: string) => {
-    const link = `https://velox.app/track/${id}`;
+    const baseUrl = window.location.origin;
+    const link = `${baseUrl}/track/${id}`;
     navigator.clipboard.writeText(link);
-    toast.success('Link de rastreo copiado');
+    toast.success('Enlace de rastreo copiado');
   };
 
   const handleDeleteOrder = async (id: string) => {
@@ -228,83 +231,155 @@ export function Orders() {
             <Activity className="animate-spin text-primary mr-2" size={20} /> Recuperando pedidos activos...
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Pedido ID</TableHead>
-                  <TableHead>Cliente / Destino</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Repartidor</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredOrders.map((order) => (
-                  <TableRow key={order.id} className="group hover:bg-surfaceHover/30 transition-colors">
-                    <TableCell className="font-mono text-xs font-bold text-primary">
-                      {order.id?.substring(0, 10)}
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-semibold text-text">{order.client}</p>
-                        <p className="text-xs text-textMuted flex items-center gap-1 mt-0.5">
-                          <MapPin size={10} /> {order.address}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1.5">
-                        <Badge 
-                          variant={order.status === 'Entregado' ? 'success' : order.status === 'En camino' ? 'primary' : 'default'}
-                        >
-                          {order.status}
-                        </Badge>
-                        <span className={`text-[9px] font-black uppercase text-center px-1.5 py-0.5 rounded-full border ${
-                          order.priority === 'Alta' || order.priority === 'Urgente' ? 'bg-danger/10 text-danger border-danger/20' : 
-                          order.priority === 'Media' ? 'bg-warning/10 text-warning border-warning/20' : 'bg-success/10 text-success border-success/20'
-                        }`}>
-                          Prioridad {order.priority}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
-                          <Truck size={12} className="text-textMuted" />
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-white/10">
+                    <TableHead>Pedido ID</TableHead>
+                    <TableHead>Cliente / Destino</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Repartidor</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredOrders.map((order) => (
+                    <TableRow key={order.id} className="group hover:bg-surfaceHover/30 transition-colors">
+                      <TableCell className="font-mono text-xs font-bold text-primary">
+                        {order.id?.substring(0, 10)}
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-semibold text-text">{order.client}</p>
+                          <p className="text-xs text-textMuted flex items-center gap-1 mt-0.5">
+                            <MapPin size={10} /> {order.address}
+                          </p>
                         </div>
-                        <span className="text-sm font-medium">{order.driver}</span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1.5">
+                          <Badge 
+                            variant={order.status === 'Entregado' ? 'success' : order.status === 'En camino' ? 'primary' : 'default'}
+                          >
+                            {order.status}
+                          </Badge>
+                          <span className={`text-[9px] font-black uppercase text-center px-1.5 py-0.5 rounded-full border ${
+                            order.priority === 'Alta' || order.priority === 'Urgente' ? 'bg-danger/10 text-danger border-danger/20' : 
+                            order.priority === 'Media' ? 'bg-warning/10 text-warning border-warning/20' : 'bg-success/10 text-success border-success/20'
+                          }`}>
+                            Prioridad {order.priority}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                            <Truck size={12} className="text-textMuted" />
+                          </div>
+                          <span className="text-sm font-medium">{order.driver}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-bold text-text">
+                        ${Number(order.amount).toLocaleString('es-CO')}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary/80" onClick={() => copyTrackingLink(order.id)}>
+                            <MapPin size={14} />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleOpenModal(order)}>
+                            <Edit2 size={14} />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-danger" onClick={() => handleDeleteOrder(order.id)}>
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="lg:hidden space-y-4 p-4">
+              <AnimatePresence>
+                {filteredOrders.map((order) => (
+                  <motion.div
+                    key={order.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  onClick={() => navigate('/map', { state: { selectedOrderId: order.id } })}
+                  className="p-5 rounded-[28px] bg-white/5 border border-white/5 active:scale-[0.98] transition-all space-y-4 relative overflow-hidden group shadow-xl"
+                >
+                  <div className="absolute top-0 right-0 p-3 bg-primary/20 text-primary rounded-bl-2xl">
+                    <Navigation size={16} />
+                  </div>
+                  
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="text-[10px] font-mono text-primary font-bold uppercase tracking-widest">{order.id?.substring(0, 10)}</span>
+                      <h3 className="text-lg font-black text-text mt-1">{order.client}</h3>
+                    </div>
+                    <Badge 
+                      variant={order.status === 'Entregado' ? 'success' : order.status === 'En camino' ? 'primary' : 'default'}
+                      className="text-[10px]"
+                    >
+                      {order.status}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-textMuted">
+                    <MapPin size={14} className="shrink-0 text-primary" />
+                    <p className="text-xs font-medium truncate">{order.address}</p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-surface border border-white/5 flex items-center justify-center">
+                        <Truck size={14} className="text-textMuted" />
                       </div>
-                    </TableCell>
-                    <TableCell className="font-bold text-text">
-                      ${Number(order.amount).toLocaleString('es-CO')}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary/80" onClick={() => copyTrackingLink(order.id)}>
-                          <MapPin size={14} />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleOpenModal(order)}>
-                          <Edit2 size={14} />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-danger" onClick={() => handleDeleteOrder(order.id)}>
-                          <Trash2 size={14} />
-                        </Button>
+                      <div>
+                          <p className="text-[9px] text-textMuted uppercase font-bold tracking-tighter leading-none">Repartidor</p>
+                          <p className="text-xs font-bold text-text">{order.driver}</p>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filteredOrders.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-20 text-textMuted">
-                      No hay pedidos que coincidan con la búsqueda.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[9px] text-textMuted uppercase font-bold tracking-tighter leading-none">Monto</p>
+                      <p className="text-base font-black text-text">${Number(order.amount).toLocaleString('es-CO')}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleOpenModal(order); }}
+                      className="flex-1 py-3 bg-white/5 rounded-xl text-xs font-bold text-text hover:bg-white/10 transition-colors"
+                    >
+                      Editar
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); navigate('/map', { state: { selectedOrderId: order.id } }); }}
+                      className="flex-1 py-3 bg-primary/20 rounded-xl text-xs font-bold text-primary hover:bg-primary/30 transition-colors"
+                    >
+                      Rastrear
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
+
+            {filteredOrders.length === 0 && (
+              <div className="py-20 text-center text-textMuted">
+                <Package size={48} className="mx-auto opacity-10 mb-4" />
+                <p className="text-sm">No hay pedidos registrados.</p>
+              </div>
+            )}
+          </>
         )}
       </Card>
 

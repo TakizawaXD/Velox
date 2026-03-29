@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import {
   Star, UserPlus, Navigation,
   Truck, Clock, Activity, Edit2, Trash2, Search
@@ -82,7 +83,8 @@ export function Drivers() {
     return unsub;
   }, [currentUser]);
 
-  const handleToggleStatus = async (driver: any) => {
+  const handleToggleStatus = async (e: React.MouseEvent, driver: any) => {
+    e.stopPropagation();
     try {
       const newStatus = driver.status === 'Offline' ? 'Disponible' : 'Offline';
       await updateDoc(doc(db, 'drivers', driver.id), { status: newStatus });
@@ -226,108 +228,179 @@ export function Drivers() {
         ))}
       </div>
 
-      {/* Grid de Repartidores */}
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 text-textMuted gap-4">
-          <Activity className="animate-spin text-primary" size={32} />
-          <p className="font-bold tracking-widest uppercase text-xs">Sincronizando Flota Live...</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <AnimatePresence>
-            {filteredDrivers.map((driver, i) => (
-              <motion.div
-                key={driver.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ delay: i * 0.05 }}
-              >
-                <Card 
-                  className="glass-panel hover:border-primary/30 transition-all group overflow-hidden cursor-pointer p-0 relative" 
-                  onClick={() => setSelectedDriver(driver)}
-                >
-                  <div className={`h-1 w-full ${statusBg(driver.status)} opacity-80`} />
-                  <div className="p-6">
-                    <div className="flex items-start justify-between mb-6">
-                      <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-2xl overflow-hidden bg-surface flex items-center justify-center border-2 border-white/5 group-hover:border-primary/20 transition-all shadow-xl font-black text-text/80 text-2xl">
-                          {driver.name?.charAt(0)?.toUpperCase()}
-                        </div>
-                        <div>
-                          <h3 className="font-black text-text text-lg leading-tight truncate max-w-[140px]">{driver.name}</h3>
-                          <div className="flex items-center text-xs font-bold text-textMuted gap-2 mt-1">
-                            <span className="flex items-center gap-1 text-yellow-400"><Star size={12} className="fill-yellow-400" /> {driver.rating || 5.0}</span>
-                            <span className="opacity-20">|</span>
-                            <span>{driver.deliveries || 0} envíos</span>
+      {/* Grid/Table de Repartidores */}
+      <Card className="glass-panel overflow-hidden p-0 border-white/5 relative min-h-[400px]">
+        {isLoading ? (
+          <div className="absolute inset-0 flex items-center justify-center text-textMuted py-20 gap-4">
+            <Activity className="animate-spin text-primary" size={32} />
+            <p className="font-bold tracking-widest uppercase text-xs">Sincronizando Flota Live...</p>
+          </div>
+        ) : (
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Repartidor</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Vehículo</TableHead>
+                    <TableHead>Mantenimiento</TableHead>
+                    <TableHead>Calificación</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <AnimatePresence>
+                    {filteredDrivers.map((driver) => (
+                      <motion.tr
+                        key={driver.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="group border-b border-white/5 hover:bg-surfaceHover/40 transition-colors"
+                      >
+                        <TableCell className="font-medium flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-surface border border-white/10 flex items-center justify-center font-black text-primary">
+                            {driver.name?.charAt(0)?.toUpperCase()}
                           </div>
+                          <div>
+                            <p className="text-text font-bold">{driver.name}</p>
+                            <p className="text-[10px] text-textMuted uppercase font-bold tracking-tighter">{driver.phone || '-'}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={driver.status === 'Disponible' ? 'success' : driver.status === 'Offline' ? 'default' : 'primary'}
+                            className="cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={(e) => handleToggleStatus(e, driver)}
+                          >
+                            {driver.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-xs text-text">{driver.vehicleType}</div>
+                          <div className="text-[10px] text-textMuted font-mono">{driver.plate || 'No registrado'}</div>
+                        </TableCell>
+                        <TableCell>
+                           <div className="flex items-center gap-2">
+                              <div className={`h-1.5 w-16 rounded-full ${ (driver.maintenanceKm || 0) > 4500 ? 'bg-danger' : 'bg-success/50' } overflow-hidden`}>
+                                <div className="h-full bg-success" style={{ width: `${Math.max(0, 100 - (driver.maintenanceKm || 0) / 50)}%` }} />
+                              </div>
+                              <span className="text-[10px] font-bold text-text/60">{(driver.maintenanceKm || 0)}km</span>
+                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-xs text-yellow-400">
+                             <Star size={12} className="fill-yellow-400" /> {driver.rating || 5.0}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-primary"
+                              onClick={() => navigate('/map', { state: { selectedDriverId: driver.id } })}
+                            >
+                              <Navigation size={14} />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={(e) => handleOpenEditModal(e, driver)}>
+                              <Edit2 size={14} />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-danger" onClick={(e) => handleDeleteDriver(e, driver.id)}>
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </motion.tr>
+                    ))}
+                  </AnimatePresence>
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="lg:hidden space-y-4 p-4">
+              <AnimatePresence>
+                {filteredDrivers.map((driver, i) => (
+                  <motion.div
+                    key={driver.id}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: i * 0.05 }}
+                    onClick={() => navigate('/map', { state: { selectedDriverId: driver.id } })}
+                    className="p-5 rounded-[28px] bg-white/5 border border-white/5 active:scale-[0.98] transition-all space-y-4 relative overflow-hidden group shadow-xl"
+                  >
+                    <div 
+                      onClick={(e) => handleToggleStatus(e, driver)}
+                      className={`absolute top-0 right-0 p-3 ${statusBg(driver.status)} bg-opacity-20 text-text rounded-bl-2xl font-black text-[10px] cursor-pointer hover:bg-opacity-40 transition-all`}
+                    >
+                       {driver.status?.toUpperCase()}
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-surface border-2 border-white/10 flex items-center justify-center font-black text-2xl text-primary shadow-neon-blue">
+                        {driver.name?.charAt(0)?.toUpperCase()}
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black text-text leading-tight">{driver.name}</h3>
+                        <div className="flex items-center gap-3 mt-1">
+                           <span className="flex items-center gap-1 text-[10px] text-yellow-400 font-black"><Star size={10} className="fill-yellow-400" /> {driver.rating || 5.0}</span>
+                           <span className="text-[10px] text-textMuted font-bold uppercase">{driver.deliveries || 0} ENVÍOS</span>
                         </div>
                       </div>
-                      <Badge variant={driver.status === 'Disponible' ? 'success' : driver.status === 'Offline' ? 'default' : 'primary'}>
-                        {driver.status}
-                      </Badge>
                     </div>
 
-                    {/* Optimization Metrics */}
-                    <div className="mb-4 flex items-center justify-between px-1">
-                       <div className="flex items-center gap-2">
-                          <div className="h-6 w-6 rounded-full bg-yellow-400/10 flex items-center justify-center text-yellow-500">
-                             <Activity size={12} />
-                          </div>
-                          <span className="text-[11px] font-black text-text uppercase tracking-wider">{driver.points || 0} Puntos Velox</span>
+                    <div className="grid grid-cols-2 gap-4 pt-2">
+                       <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-textMuted uppercase tracking-tighter leading-none">Vehículo</p>
+                          <p className="text-xs font-bold text-text truncate">{driver.vehicleType}</p>
+                          <p className="text-[9px] font-mono text-primary font-black">{driver.plate || 'SIN PLACA'}</p>
                        </div>
+                       <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-textMuted uppercase tracking-tighter leading-none">Ciudad / Zona</p>
+                          <p className="text-xs font-bold text-text truncate">{driver.city}</p>
+                          <p className="text-[9px] text-textMuted font-medium">{driver.zone}</p>
+                       </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-white/5 flex items-center justify-between">
                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-textMuted font-bold uppercase">Eficiencia</span>
-                          <div className="w-12 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                          <div className="h-2 w-24 bg-white/5 rounded-full overflow-hidden">
                              <div className="h-full bg-primary" style={{ width: `${Math.min((driver.deliveries || 0) * 5, 100)}%` }} />
                           </div>
+                          <span className="text-[9px] font-black text-primary uppercase">Rendimiento</span>
+                       </div>
+                       <div className="flex gap-2">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleOpenEditModal(e, driver); }}
+                            className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-textMuted hover:bg-white/10 transition-colors"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); navigate('/map', { state: { selectedDriverId: driver.id } }); }}
+                            className="px-4 h-10 bg-primary/20 rounded-xl text-[10px] font-black uppercase text-primary hover:bg-primary/30 transition-colors"
+                          >
+                            Ver En Mapa
+                          </button>
                        </div>
                     </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
 
-                    <div className="grid grid-cols-2 gap-3 mb-6">
-                      <div className="bg-white/5 rounded-xl p-3 border border-white/5">
-                        <p className="text-[10px] text-textMuted font-bold uppercase tracking-widest mb-1">Vehículo</p>
-                        <p className="text-xs font-bold text-text truncate">{driver.vehicleType || '?'}</p>
-                      </div>
-                      <div className="bg-white/5 rounded-xl p-3 border border-white/5 overflow-hidden relative">
-                        <p className="text-[10px] text-textMuted font-bold uppercase tracking-widest mb-1">Cuidado Mecánico</p>
-                        <div className="flex items-center gap-2">
-                           <div className={`h-1.5 flex-1 rounded-full ${ (driver.maintenanceKm || 0) > 4500 ? 'bg-danger' : 'bg-success/50' } overflow-hidden`}>
-                              <div className="h-full bg-success" style={{ width: `${Math.max(0, 100 - (driver.maintenanceKm || 0) / 50)}%` }} />
-                           </div>
-                           <span className="text-[10px] font-bold text-text/60">{(driver.maintenanceKm || 0)}km</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-                      <Button 
-                        variant="outline" 
-                        className="flex-1 text-[11px] font-black uppercase tracking-wider rounded-xl h-10 gap-2 border-white/10 hover:bg-primary/10 hover:border-primary/20 hover:text-primary transition-all"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate('/map', { state: { selectedDriverId: driver.id } });
-                        }}
-                      >
-                        <Navigation size={14} /> Rastrear
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-10 w-10 text-primary border border-white/10" onClick={(e) => handleOpenEditModal(e, driver)}>
-                        <Edit2 size={16} />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-10 w-10 text-danger border border-white/10" onClick={(e) => handleDeleteDriver(e, driver.id)}>
-                        <Trash2 size={16} />
-                      </Button>
-                      <button onClick={() => handleToggleStatus(driver)} className={`px-4 rounded-xl font-bold text-xs ${driver.status === 'Offline' ? 'bg-primary text-white' : 'bg-white/5 text-textMuted'}`}>
-                        {driver.status === 'Offline' ? 'Activar' : 'Cerrar'}
-                      </button>
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
+            {filteredDrivers.length === 0 && (
+              <div className="py-20 text-center text-textMuted">
+                <Truck size={48} className="mx-auto opacity-10 mb-4" />
+                <p className="text-sm font-bold uppercase tracking-widest">No hay flota registrada.</p>
+                <p className="text-xs mt-1">Añade tu primer repartidor para empezar a monitorear.</p>
+              </div>
+            )}
+          </>
+        )}
+      </Card>
 
       {/* ===================== MODALES ===================== */}
       <Modal isOpen={!!selectedDriver} onClose={() => setSelectedDriver(null)} title="Perfil del Repartidor">

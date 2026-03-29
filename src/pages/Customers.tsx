@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { Search, Plus, Edit2, Trash2, Phone, Activity, Star, UserPlus } from 'lucide-react';
-import { collection, onSnapshot, query, where, orderBy, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
@@ -47,6 +48,7 @@ const emptyCustomer = {
 
 export function Customers() {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,11 +61,13 @@ export function Customers() {
     if (!currentUser) return;
     const q = query(
       collection(db, 'customers'),
-      where('tenantId', '==', currentUser.uid),
-      orderBy('name', 'asc')
+      where('tenantId', '==', currentUser.uid)
     );
     const unsub = onSnapshot(q, (snap) => {
-      setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Sort in memory to avoid "Index Required" error
+      docs.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+      setCustomers(docs);
       setIsLoading(false);
     });
     return unsub;
@@ -149,93 +153,162 @@ export function Customers() {
         />
       </div>
 
-      <Card className="glass-panel overflow-hidden p-0 border-white/5">
+      <Card className="glass-panel overflow-hidden p-0 border-white/5 relative min-h-[400px]">
         {isLoading ? (
-          <div className="p-20 flex flex-col items-center justify-center text-textMuted gap-4">
-            <Activity className="animate-spin text-primary" size={32} />
-            <p className="font-bold">Cargando base de datos...</p>
+          <div className="absolute inset-0 flex items-center justify-center text-textMuted">
+            <Activity className="animate-spin text-primary mr-2" size={20} /> Recuperando clientes...
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Estado VIP</TableHead>
-                  <TableHead>Identificación</TableHead>
-                  <TableHead>Contacto</TableHead>
-                  <TableHead>Ubicación</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <AnimatePresence>
-                  {filteredCustomers.map((customer, i) => (
-                    <motion.tr
-                      key={customer.id}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.04 }}
-                      className="group border-b border-white/5 hover:bg-surfaceHover/40 transition-colors"
-                    >
-                      <TableCell className="font-medium flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${customer.isVIP ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/30' : 'bg-primary/10 text-primary'}`}>
-                          {customer.name?.charAt(0) || 'C'}
-                        </div>
-                        <div>
-                          <p className="text-text font-medium flex items-center gap-1.5">
-                            {customer.name}
-                            {customer.isVIP && <Star size={10} className="fill-yellow-500 text-yellow-500" />}
-                          </p>
-                          <p className="text-xs text-textMuted">{customer.email}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                         <div className="flex flex-col gap-1">
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Estado VIP</TableHead>
+                    <TableHead>Identificación</TableHead>
+                    <TableHead>Contacto</TableHead>
+                    <TableHead>Ubicación</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <AnimatePresence>
+                    {filteredCustomers.map((customer, i) => (
+                      <motion.tr
+                        key={customer.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        className="group border-b border-white/5 hover:bg-surfaceHover/40 transition-colors"
+                      >
+                        <TableCell className="font-medium flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${customer.isVIP ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/30' : 'bg-primary/10 text-primary'}`}>
+                            {customer.name?.charAt(0) || 'C'}
+                          </div>
+                          <div>
+                            <p className="text-text font-medium flex items-center gap-1.5">
+                              {customer.name}
+                              {customer.isVIP && <Star size={10} className="fill-yellow-500 text-yellow-500" />}
+                            </p>
+                            <p className="text-xs text-textMuted">{customer.email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
                             <Badge variant={customer.isVIP ? 'primary' : 'default'} className={customer.isVIP ? 'bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30' : ''}>
                               {customer.isVIP ? 'CLIENTE VIP' : 'Estándar'}
                             </Badge>
                             <span className="text-[10px] font-bold text-textMuted uppercase opacity-60">
-                               Plan: {customer.subscriptionStatus || 'Ninguno'}
+                              Plan: {customer.subscriptionStatus || 'Ninguno'}
                             </span>
-                         </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-textMuted">
-                        {customer.idNumber || '-'}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5 text-xs text-textMuted">
-                          <Phone size={12} className="text-primary" />
-                          {customer.phone || '-'}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-text">{customer.city}</div>
-                        <div className="text-xs text-textMuted truncate max-w-[150px]">{customer.address}</div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleOpenModal(customer)}>
-                            <Edit2 size={14} />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-danger" onClick={() => handleDelete(customer.id)}>
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </motion.tr>
-                  ))}
-                </AnimatePresence>
-                {filteredCustomers.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-20 text-textMuted">
-                      No se encontraron clientes.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-textMuted">
+                          {customer.idNumber || '-'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5 text-xs text-textMuted">
+                            <Phone size={12} className="text-primary" />
+                            {customer.phone || '-'}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm text-text">{customer.city}</div>
+                          <div className="text-xs text-textMuted truncate max-w-[150px]">{customer.address}</div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleOpenModal(customer)}>
+                              <Edit2 size={14} />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-danger" onClick={() => handleDelete(customer.id)}>
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </motion.tr>
+                    ))}
+                  </AnimatePresence>
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="lg:hidden space-y-4 p-4">
+              {filteredCustomers.map((customer) => (
+                <motion.div
+                  key={customer.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  onClick={() => navigate('/map', { state: { selectedCustomerId: customer.id } })}
+                  className="p-5 rounded-[28px] bg-white/5 border border-white/5 active:scale-[0.98] transition-all space-y-4 relative overflow-hidden group shadow-xl"
+                >
+                  <div className="absolute top-0 right-0 p-3 bg-primary/20 text-primary rounded-bl-2xl">
+                     <Star size={16} className={customer.isVIP ? 'fill-primary' : ''} />
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg ${customer.isVIP ? 'bg-yellow-500/20 text-yellow-500 shadow-neon-yellow border border-yellow-500/30' : 'bg-primary/20 text-primary shadow-neon-blue border border-primary/30'}`}>
+                      {customer.name?.charAt(0) || 'C'}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-text leading-tight">{customer.name}</h3>
+                      <p className="text-xs text-textMuted font-medium">{customer.email || 'Sin correo'}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-textMuted uppercase tracking-tighter leading-none">Teléfono</p>
+                      <p className="text-sm font-bold text-text flex items-center gap-1.5">
+                        <Phone size={12} className="text-primary" /> {customer.phone || '-'}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-textMuted uppercase tracking-tighter leading-none">NIT / Cédula</p>
+                      <p className="text-sm font-bold text-text">{customer.idNumber || '-'}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                    <div>
+                      <p className="text-[10px] font-bold text-textMuted uppercase tracking-tighter leading-none mb-1">Dirección Actual</p>
+                      <p className="text-xs font-medium text-text truncate max-w-[200px]">{customer.address}</p>
+                      <p className="text-[10px] text-primary font-bold mt-0.5">{customer.city}</p>
+                    </div>
+                    <Badge variant={customer.isVIP ? 'success' : 'default'} className="text-[10px]">
+                      {customer.subscriptionStatus || 'Estándar'}
+                    </Badge>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleOpenModal(customer); }}
+                      className="flex-1 py-3 bg-white/5 rounded-xl text-sm font-bold text-text hover:bg-white/10 transition-colors"
+                    >
+                      Editar Perfil
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); navigate('/map', { state: { selectedCustomerId: customer.id } }); }}
+                      className="flex-1 py-3 bg-primary/20 rounded-xl text-sm font-bold text-primary hover:bg-primary/30 transition-colors"
+                    >
+                      Ubicación
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            {filteredCustomers.length === 0 && (
+              <div className="py-20 text-center text-textMuted">
+                <UserPlus size={48} className="mx-auto opacity-10 mb-4" />
+                <p className="text-sm font-bold">Base de datos vacía.</p>
+                <p className="text-xs mt-1">Registra tu primer cliente para verlo aquí.</p>
+              </div>
+            )}
+          </>
         )}
       </Card>
 

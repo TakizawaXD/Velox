@@ -11,6 +11,14 @@ import { Customers } from '@/pages/Customers';
 import { Settings } from '@/pages/Settings';
 import { Register } from '@/pages/Register';
 import { Analytics } from '@/pages/Analytics';
+import Home from '@/pages/Home';
+import { About } from './pages/About';
+import { Blog } from './pages/Blog';
+import { Contact } from './pages/Contact';
+import { Support } from './pages/Support';
+import { Terms } from './pages/Terms';
+import { Privacy } from './pages/Privacy';
+import { Cookies } from './pages/Cookies';
 import { NotFound } from '@/pages/NotFound';
 import { PublicTracking } from '@/pages/PublicTracking';
 import { useAuth } from '@/context/AuthContext';
@@ -48,6 +56,7 @@ export default function App() {
       />
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<Home />} />
           <Route 
             path="/login" 
             element={currentUser ? <Navigate to="/dashboard" replace /> : <Login />} 
@@ -56,10 +65,14 @@ export default function App() {
             path="/register" 
             element={currentUser ? <Navigate to="/dashboard" replace /> : <Register />} 
           />
-          <Route 
-            path="/track/:orderId" 
-            element={<PublicTracking />} 
-          />
+          <Route path="/track/:orderId" element={<PublicTracking />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/blog" element={<Blog />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/support" element={<Support />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/cookies" element={<Cookies />} />
           
           <Route 
             element={
@@ -68,7 +81,6 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/map" element={<MapView />} />

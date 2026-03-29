@@ -40,6 +40,24 @@ export function PublicTracking() {
   useEffect(() => {
     async function fetchOrder() {
       if (!orderId) return;
+      
+      // Demo Mode Support
+      if (orderId === 'demo') {
+        setOrder({
+          id: 'DEMO-777-BOG',
+          status: 'En Camino',
+          address: 'Carrera 7 #71-21',
+          city: 'Bogotá, Colombia',
+          client: 'Andrés García (Velox Demo User)',
+          lat: 4.6547,
+          lng: -74.0573,
+          driverPhone: '+57 300 123 4567',
+          updatedAt: { toDate: () => new Date() }
+        });
+        setLoading(false);
+        return;
+      }
+
       try {
         const snap = await getDoc(doc(db, 'orders', orderId));
         if (snap.exists()) {

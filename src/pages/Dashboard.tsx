@@ -1,408 +1,391 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
+import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { 
-  Package, Users, Clock, DollarSign, Activity, 
-  Map as MapIcon, Plus, ChevronRight, Zap, Target,
-  ArrowUpRight, List
+  TrendingUp, Package, Truck, 
+  Clock, CheckCircle2, Plus,
+  ArrowUpRight, ArrowDownRight, Zap, Activity
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { collection, onSnapshot, query, where, orderBy, limit } from 'firebase/firestore';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, 
+  Tooltip, ResponsiveContainer
+} from 'recharts';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { seedDemoData } from '@/lib/seeds';
+import { toast } from 'react-hot-toast';
+
+interface OrderData {
+  id: string;
+  status?: string;
+  createdAt?: any;
+  client?: string;
+  city?: string;
+  amount?: number;
+}
 
 // Agrupa pedidos por hora del día para la gráfica
 function buildChartData(orders: any[]) {
-  const hours = ['08:00','10:00','12:00','14:00','16:00','18:00','20:00','22:00'];
-  const now = new Date();
+  const hours = Array.from({ length: 24 }, (_, i) => ({
+    hour: `${i}:00`,
+    pedidos: 0,
+    completados: 0
+  }));
 
-  return hours.map(h => {
-    const [hh] = h.split(':').map(Number);
-    const total = orders.filter(o => {
-      if (!o.createdAt) return false;
-      const d = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
-      return d.getHours() === hh && d.toDateString() === now.toDateString();
-    }).length;
-    const completados = orders.filter(o => {
-      if (!o.createdAt) return false;
-      const d = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
-      return d.getHours() === hh && d.toDateString() === now.toDateString() && o.status === 'Entregado';
-    }).length;
-    return { time: h, pedidos: total, completados };
+  orders.forEach(order => {
+    if (order.createdAt) {
+      const date = order.createdAt.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
+      const h = date.getHours();
+      hours[h].pedidos++;
+      if (order.status === 'Entregado') hours[h].completados++;
+    }
   });
-}
 
-const QuickAction = ({ icon: Icon, label, onClick, color }: any) => (
-  <button 
-    onClick={onClick}
-    className="group flex flex-col items-center gap-2 p-4 rounded-2xl bg-surfaceHover/40 hover:bg-primary/10 border border-white/5 hover:border-primary/30 transition-all"
-  >
-    <div className={`p-3 rounded-xl ${color} group-hover:scale-110 transition-transform`}>
-      <Icon size={20} />
-    </div>
-    <span className="text-xs font-semibold text-textMuted group-hover:text-primary">{label}</span>
-  </button>
-);
+  return hours;
+}
 
 export function Dashboard() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const [orders, setOrders] = useState<any[]>([]);
-  const [drivers, setDrivers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalOrders: 0,
+    activeDrivers: 0,
+    deliveredToday: 0,
+    pendingOrders: 0
+  });
+  const [allOrders, setAllOrders] = useState<OrderData[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
-  const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [recentOrders, setRecentOrders] = useState<OrderData[]>([]);
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  const handleSeed = async () => {
+    if (!currentUser) return;
+    if (!window.confirm('¿Deseas generar datos de prueba? Se añadirán 15 pedidos, 8 repartidores y 6 clientes con cobertura en Colombia.')) return;
+    
+    setIsSeeding(true);
+    const id = toast.loading('Generando entorno de logística...');
+    try {
+      await seedDemoData(currentUser.uid);
+      toast.success('¡Operación Velox activada! Datos cargados correctamente.', { id });
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al sincronizar datos demo.', { id });
+    } finally {
+      setIsSeeding(false);
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) return;
 
-    // Listen to all orders for stats
-    const qOrders = query(collection(db, 'orders'), where('tenantId', '==', currentUser.uid));
-    const unsubsOrders = onSnapshot(qOrders, (snapshot) => {
-      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setOrders(data);
-      setChartData(buildChartData(data));
-      setLoading(false);
+    // Listen for orders
+    const qO = query(collection(db, 'orders'), where('tenantId', '==', currentUser.uid));
+    const unsubO = onSnapshot(qO, (snap) => {
+      const ordersArray = snap.docs.map(d => ({ id: d.id, ...d.data() })) as OrderData[];
+      setAllOrders(ordersArray);
+      
+      setStats(prev => ({
+        ...prev,
+        totalOrders: ordersArray.length,
+        deliveredToday: ordersArray.filter(o => o.status === 'Entregado').length,
+        pendingOrders: ordersArray.filter(o => o.status === 'Pendiente' || o.status === 'Preparando').length
+      }));
+      
+      setChartData(buildChartData(ordersArray));
+      setRecentOrders(ordersArray.sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+        return dateB.getTime() - dateA.getTime();
+      }).slice(0, 5));
     });
 
-    // Recent orders (limited for performance)
-    const qRecent = query(
-      collection(db, 'orders'), 
-      where('tenantId', '==', currentUser.uid),
-      orderBy('createdAt', 'desc'),
-      limit(5)
-    );
-    const unsubsRecent = onSnapshot(qRecent, (snapshot) => {
-      setRecentOrders(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    // Listen for drivers
+    const qD = query(collection(db, 'drivers'), where('tenantId', '==', currentUser.uid), where('status', '==', 'Disponible'));
+    const unsubD = onSnapshot(qD, (snap) => {
+      setStats(prev => ({ ...prev, activeDrivers: snap.size }));
     });
 
-    // Drivers info
-    const qDrivers = query(collection(db, 'drivers'), where('tenantId', '==', currentUser.uid));
-    const unsubsDrivers = onSnapshot(qDrivers, (snapshot) => {
-      setDrivers(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-
-    return () => {
-      unsubsOrders();
-      unsubsRecent();
-      unsubsDrivers();
-    };
+    return () => { unsubO(); unsubD(); };
   }, [currentUser]);
 
-  const activeOrders = orders.filter(o => o.status !== 'Entregado' && o.status !== 'Cancelado').length;
-  const deliveredToday = orders.filter(o => {
-    if (!o.createdAt) return false;
-    const d = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt);
-    return d.toDateString() === new Date().toDateString() && o.status === 'Entregado';
-  }).length;
-  
-  const totalIncome = orders
-    .filter(o => o.status === 'Entregado')
-    .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
-    
-  const deliverySuccessRate = orders.length > 0 
-    ? Math.round((orders.filter(o => o.status === 'Entregado').length / orders.length) * 100) 
-    : 100;
-
-  const onlineDrivers = drivers.filter(d => d.status !== 'Offline').length;
-
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-textMuted gap-4">
-        <div className="relative">
-          <Activity size={48} className="animate-spin text-primary" />
-          <div className="absolute inset-0 blur-xl bg-primary/20 animate-pulse" />
-        </div>
-        <div className="text-center font-medium">
-          <p className="text-xl text-text">Sincronizando Torre de Control</p>
-          <p className="text-sm opacity-60">Optimizando rutas y cargando flota...</p>
-        </div>
-      </div>
-    );
-  }
+  const kpis = [
+    { 
+      label: 'Despachos Totales', 
+      value: stats.totalOrders, 
+      icon: Package, 
+      trend: '+12%', 
+      up: true,
+      color: 'from-blue-500/20 to-indigo-500/20',
+      iconColor: 'text-blue-400'
+    },
+    { 
+      label: 'Drivers Activos', 
+      value: stats.activeDrivers, 
+      icon: Truck, 
+      trend: 'En vivo', 
+      up: true,
+      color: 'from-emerald-500/20 to-teal-500/20',
+      iconColor: 'text-emerald-400'
+    },
+    { 
+      label: 'Entregas Hoy', 
+      value: stats.deliveredToday, 
+      icon: CheckCircle2, 
+      trend: '+5%', 
+      up: true,
+      color: 'from-amber-500/20 to-orange-500/20',
+      iconColor: 'text-amber-400'
+    },
+    { 
+      label: 'Pendientes', 
+      value: stats.pendingOrders, 
+      icon: Clock, 
+      trend: '-2%', 
+      up: false,
+      color: 'from-rose-500/20 to-pink-500/20',
+      iconColor: 'text-rose-400'
+    },
+  ];
 
   return (
-    <div className="space-y-8 max-w-[1600px] mx-auto pb-10">
-      {/* Welcome & Context Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div className="space-y-1">
-          <motion.h1 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="text-3xl md:text-4xl font-black text-text tracking-tight flex items-center gap-3"
-          >
-            Panel de Control <Zap className="text-primary fill-primary" size={28} />
-          </motion.h1>
-          <p className="text-textMuted text-sm md:text-base font-medium">
-            Velox Logistics — <span className="text-primary">{deliveredToday} entregas hoy</span> en tiempo récord.
-          </p>
+    <div className="space-y-8 pb-12">
+      {/* Header with Glassmorphism */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <div className="flex items-center gap-2 text-primary font-black uppercase tracking-[0.3em] text-[10px] mb-2">
+            <span className="w-8 h-[2px] bg-primary" /> 
+            Sistema Operativo
+          </div>
+          <h1 className="text-4xl md:text-5xl font-black text-text tracking-tighter flex items-baseline gap-2">
+            Velox <span className="text-primary animate-pulse">Core</span>
+          </h1>
+          <p className="text-textMuted font-medium mt-1">Monitor de flujo logístico en tiempo real.</p>
         </div>
         
         <div className="flex items-center gap-3">
-          <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-surfaceHover/50 border border-white/5 rounded-2xl text-xs font-bold text-textMuted uppercase tracking-widest">
-            <span className="w-2 h-2 rounded-full bg-success shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
-            Sistema Operativo
-          </div>
+          <Button 
+            variant="outline"
+            onClick={handleSeed}
+            isLoading={isSeeding}
+            className="border-primary/20 hover:bg-primary/5 text-primary text-xs font-bold uppercase tracking-widest px-4 py-2.5 rounded-2xl hidden sm:flex items-center gap-2"
+          >
+            <Zap size={14} className="fill-primary" /> Generar Demo
+          </Button>
           <Button 
             onClick={() => navigate('/orders')} 
-            className="shadow-neon-blue gap-2 py-3 px-6 rounded-2xl md:text-base"
+            className="shadow-neon-blue gap-2 py-3 px-6 rounded-2xl md:text-base font-bold"
           >
             <Plus size={18} /> Nuevo Despacho
           </Button>
         </div>
       </div>
 
-      {/* Primary KPI Grid */}
+      {/* KPI Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { 
-            label: 'Operación Activa', 
-            value: activeOrders, 
-            icon: Package, 
-            color: 'text-blue-400', 
-            trend: `${orders.length} pedidos hoy`,
-            bg: 'bg-blue-400/10'
-          },
-          { 
-            label: 'Ingresos Entregados', 
-            value: `$${(totalIncome/1000).toFixed(1)}k`, 
-            icon: DollarSign, 
-            color: 'text-emerald-400', 
-            trend: 'COP liquidados',
-            bg: 'bg-emerald-400/10'
-          },
-          { 
-            label: 'Flota Disponible', 
-            value: `${onlineDrivers}/${drivers.length}`, 
-            icon: Users, 
-            color: 'text-amber-400', 
-            trend: 'Repartidores activos',
-            bg: 'bg-amber-400/10'
-          },
-          { 
-            label: 'Tasa de Éxito', 
-            value: `${deliverySuccessRate}%`, 
-            icon: Target, 
-            color: 'text-purple-400', 
-            trend: 'Entregas vs pedidos',
-            bg: 'bg-purple-400/10'
-          },
-        ].map((stat, i) => (
+        {kpis.map((kpi, i) => (
           <motion.div
-            key={stat.label}
+            key={kpi.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
           >
-            <Card className="p-6 glass-panel relative overflow-hidden group hover:border-primary/20 transition-all cursor-default h-full">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-bold text-textMuted uppercase tracking-wider mb-2">{stat.label}</p>
-                  <h3 className="text-4xl font-black text-text tracking-tighter">{stat.value}</h3>
-                  <div className="mt-2 text-xs font-semibold text-textMuted flex items-center gap-1.5">
-                    <span className={`p-1 rounded-md ${stat.bg} ${stat.color}`}>
-                      <ArrowUpRight size={12} />
-                    </span>
-                    {stat.trend}
-                  </div>
+            <Card className={`relative overflow-hidden border-white/5 bg-gradient-to-br ${kpi.color} p-6 group hover:scale-[1.02] transition-all`}>
+              <div className="flex justify-between items-start mb-4">
+                <div className={`p-3 rounded-2xl bg-surface shadow-xl ${kpi.iconColor}`}>
+                   <kpi.icon size={24} />
                 </div>
-                <div className={`p-4 rounded-3xl ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform`}>
-                  <stat.icon size={28} />
+                <div className={`flex items-center text-xs font-black ${kpi.up ? 'text-success' : 'text-danger'}`}>
+                  {kpi.up ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                  {kpi.trend}
                 </div>
               </div>
-              {/* Subtle accent line */}
-              <div className={`absolute bottom-0 left-0 h-1 bg-gradient-to-r from-transparent via-${stat.color.split('-')[1]}-500 to-transparent w-full opacity-0 group-hover:opacity-100 transition-opacity`} />
+              <h3 className="text-textMuted text-xs font-bold uppercase tracking-widest">{kpi.label}</h3>
+              <p className="text-3xl font-black text-text mt-1">{kpi.value}</p>
+              
+              <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <kpi.icon size={100} />
+              </div>
             </Card>
           </motion.div>
         ))}
       </div>
 
-      {/* Main Content Sections */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      {/* Optimization Suite - NEW */}
+      <motion.div 
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+      >
+        <Card className="md:col-span-2 glass-panel border-primary/20 bg-primary/5 p-6 flex flex-col md:flex-row items-center gap-6">
+           <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0 animate-pulse">
+              <Zap size={32} />
+           </div>
+           <div className="flex-1 text-center md:text-left">
+              <h3 className="text-lg font-black text-text uppercase tracking-tighter">Suite de Optimización Activa</h3>
+              <p className="text-sm text-textMuted mt-1">Velox AI ha identificado un <b>14% de ahorro potencial</b> en tus rutas actuales.</p>
+              <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-4">
+                 <div className="px-3 py-1.5 bg-surface rounded-xl border border-white/10 text-[10px] font-bold text-success flex items-center gap-1.5">
+                    <TrendingUp size={12} /> +15.2% Rentabilidad
+                 </div>
+                 <div className="px-3 py-1.5 bg-surface rounded-xl border border-white/10 text-[10px] font-bold text-primary flex items-center gap-1.5">
+                    <Truck size={12} /> 22.4km Optimizados
+                 </div>
+              </div>
+           </div>
+           <Button variant="outline" className="border-primary/30 text-primary uppercase font-bold text-[10px] tracking-widest">
+              Aplicar Inteligencia
+           </Button>
+        </Card>
         
-        {/* Left: Performance Graph */}
-        <div className="xl:col-span-8 flex flex-col gap-6">
-          <Card className="glass-panel p-6 flex flex-col h-full min-h-[450px]">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-              <div>
-                <h3 className="text-xl font-black text-text">Rendimiento Operativo</h3>
-                <p className="text-sm text-textMuted font-medium">Frecuencia de entregas en tiempo real (Ciclo 24h)</p>
-              </div>
-              <div className="flex items-center gap-2 bg-white/5 p-1 rounded-xl border border-white/5 self-start sm:self-auto">
-                <Badge variant="primary">Hoy</Badge>
-                <div className="px-3 py-1 text-xs text-textMuted font-bold hover:text-text transition-colors cursor-pointer">Semana</div>
-              </div>
-            </div>
+        <Card className="glass-panel border-accent/20 bg-accent/5 p-6">
+           <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-black text-accent uppercase tracking-widest">Score Operativo</h4>
+              <Badge variant="primary" className="bg-accent/20 text-accent border-0">A+</Badge>
+           </div>
+           <div className="text-4xl font-black text-text font-mono">98.4<span className="text-xl text-textMuted">%</span></div>
+           <p className="text-[10px] text-textMuted mt-1">Eficiencia de flota por encima del promedio nacional.</p>
+           <div className="mt-4 h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <div className="h-full bg-accent" style={{ width: '98.4%' }} />
+           </div>
+        </Card>
+      </motion.div>
 
-            <div className="flex-1 w-full relative">
-              {orders.length === 0 ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-textMuted text-center">
-                  <Package size={64} className="opacity-10 mb-4" />
-                  <p className="font-bold">Sin datos para graficar</p>
-                  <p className="text-sm opacity-50 px-6 max-w-sm">Registra pedidos para activar el monitor de rendimiento visual.</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Main Chart */}
+        <Card className="lg:col-span-8 glass-panel p-8 border-white/5 flex flex-col min-h-[450px]">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h3 className="text-lg font-black text-text flex items-center gap-2">
+                <TrendingUp size={20} className="text-primary" /> Rendimiento Operativo (24H)
+              </h3>
+              <p className="text-xs text-textMuted font-medium italic">Distribución de carga por horas en Colombia</p>
+            </div>
+          </div>
+          
+          <div className="flex-1 w-full relative">
+            {allOrders.length === 0 ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-textMuted text-center p-6">
+                <Package size={64} className="opacity-10 mb-4" />
+                <p className="font-bold text-lg text-text">Base de Datos de Logística Vacía</p>
+                <p className="text-sm opacity-60 max-w-sm mb-6">
+                  Para comenzar la demostración con datos de toda Colombia, puedes generar un entorno de prueba ahora mismo.
+                </p>
+                <Button 
+                  onClick={handleSeed} 
+                  isLoading={isSeeding}
+                  className="shadow-neon-blue gap-2 py-4 px-8 rounded-2xl font-black uppercase tracking-widest text-xs"
+                >
+                  <Zap size={16} className="fill-white" /> Generar Entorno Operativo (Colombia)
+                </Button>
+              </div>
+            ) : (
+              <div className="h-[350px] min-h-[350px] w-full relative">
+                <ResponsiveContainer width="99%" height="100%">
+                  <AreaChart data={chartData}>
                     <defs>
-                      <linearGradient id="glowPedidos" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.6}/>
+                      <linearGradient id="colorPed" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="5 5" stroke="#ffffff05" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
                     <XAxis 
-                      dataKey="time" 
-                      stroke="#ffffff20" 
-                      fontSize={11} 
-                      tickLine={false} 
-                      axisLine={false} 
-                      dy={10}
-                      className="font-mono font-bold"
+                      dataKey="hour" 
+                      stroke="#ffffff40" 
+                      fontSize={10} 
+                      tickLine={false}
+                      axisLine={false}
+                      interval={3}
                     />
                     <YAxis 
-                      stroke="#ffffff20" 
-                      fontSize={11} 
+                      stroke="#ffffff40" 
+                      fontSize={10} 
                       tickLine={false} 
                       axisLine={false} 
-                      allowDecimals={false}
-                      className="font-mono"
                     />
-                    <Tooltip
-                      cursor={{ stroke: '#3b82f620', strokeWidth: 2 }}
+                    <Tooltip 
                       contentStyle={{ 
                         backgroundColor: '#111', 
-                        borderColor: '#333', 
-                        borderRadius: '20px',
-                        boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-                        borderWidth: '2px'
-                      }}
-                      itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
-                      labelStyle={{ color: '#666', marginBottom: '8px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}
+                        borderColor: '#ffffff10',
+                        borderRadius: '16px',
+                        fontSize: '12px'
+                      }} 
                     />
                     <Area 
                       type="monotone" 
                       dataKey="pedidos" 
-                      name="Pedidos Registrados" 
                       stroke="#3b82f6" 
-                      strokeWidth={4} 
+                      strokeWidth={4}
                       fillOpacity={1} 
-                      fill="url(#glowPedidos)" 
-                      animationDuration={2000}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="completados" 
-                      name="Entregas Exitosas" 
-                      stroke="#10b981" 
-                      strokeWidth={2} 
-                      strokeDasharray="5 5"
-                      fill="transparent"
-                      animationDuration={2500}
+                      fill="url(#colorPed)" 
                     />
                   </AreaChart>
                 </ResponsiveContainer>
-              )}
-            </div>
-          </Card>
-
-          {/* Quick Actions Footer (Mobile mostly, visible on all) */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <QuickAction icon={MapIcon} label="Ver Mapa en Vivo" color="bg-primary/20 text-primary" onClick={() => navigate('/map')} />
-            <QuickAction icon={List} label="Gestionar Historial" color="bg-emerald-400/20 text-emerald-400" onClick={() => navigate('/orders')} />
-            <QuickAction icon={Users} label="Panel de Flota" color="bg-amber-400/20 text-amber-400" onClick={() => navigate('/drivers')} />
-            <QuickAction icon={Activity} label="Analíticas Avanzadas" color="bg-purple-400/20 text-purple-400" onClick={() => navigate('/analytics')} />
+              </div>
+            )}
           </div>
-        </div>
+        </Card>
 
-        {/* Right: Latest Activity Sidebar */}
-        <div className="xl:col-span-4 flex flex-col gap-6">
-          <Card className="glass-panel p-6 flex flex-col h-full bg-surface/30">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h3 className="text-xl font-black text-text">Últimas Alertas</h3>
-                <p className="text-xs text-textMuted font-bold uppercase tracking-widest mt-1">Actividad Reciente</p>
+        {/* Recent Activity */}
+        <Card className="lg:col-span-4 glass-panel p-8 border-white/5 flex flex-col bg-surface/30">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-lg font-black text-text flex items-center gap-2">
+              <Activity size={20} className="text-accent" /> Actividad Live
+            </h3>
+            <button onClick={() => navigate('/orders')} className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">
+              Ver Todo
+            </button>
+          </div>
+
+          <div className="space-y-6 flex-1">
+            {recentOrders.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-textMuted opacity-30 italic text-sm">
+                Esperando señales...
               </div>
-              <Badge variant="primary" className="animate-pulse shadow-neon-blue px-3 py-1">EN VIVO</Badge>
-            </div>
-
-            <div className="space-y-4 flex-1 overflow-y-auto max-h-[600px] pr-2 custom-scrollbar">
-              <AnimatePresence mode="popLayout">
-                {recentOrders.map((order, i) => (
-                  <motion.div
-                    key={order.id}
-                    layout
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="group relative flex items-center gap-4 p-4 rounded-3xl bg-surfaceHover/30 border border-white/5 hover:border-white/10 transition-all cursor-default"
-                  >
-                    <div className={`p-3 rounded-2xl ${
-                      order.status === 'Entregado' ? 'bg-success/20 text-success' : 
-                      order.status === 'Cancelado' ? 'bg-danger/20 text-danger' : 
-                      'bg-primary/20 text-primary'
-                    }`}>
-                      <Package size={20} />
+            ) : (
+              recentOrders.map((order, i) => (
+                <motion.div 
+                  key={order.id}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className="p-4 rounded-[20px] bg-white/5 border border-white/5 hover:border-primary/20 transition-all group cursor-pointer"
+                  onClick={() => navigate('/orders')}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                       <div className="p-2 rounded-lg bg-surface group-hover:bg-primary/20 transition-colors">
+                          <Package size={14} className="text-primary" />
+                       </div>
+                       <span className="text-[10px] font-mono text-textMuted font-bold">#{order.id?.substring(0, 8)}</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-bold text-text truncate">{order.client}</p>
-                        <span className="text-[10px] font-mono text-textMuted shrink-0">#{order.id?.substring(0, 6)}</span>
-                      </div>
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-xs text-textMuted flex items-center gap-1">
-                          <Clock size={12} className="opacity-50" />
-                          {order.status}
-                        </p>
-                        <p className="text-sm font-black text-text">${Number(order.amount).toLocaleString('es-CO')}</p>
-                      </div>
-                    </div>
-                    {/* Hover state arrow */}
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity translate-x-1 group-hover:translate-x-0">
-                      <ChevronRight size={18} className="text-textMuted" />
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-              
-              {recentOrders.length === 0 && (
-                <div className="py-20 text-center space-y-3">
-                  <div className="mx-auto w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
-                    <Zap size={20} className="text-textMuted opacity-20" />
+                    <Badge variant={order.status === 'Entregado' ? 'success' : 'primary'} className="text-[9px]">
+                      {order.status}
+                    </Badge>
                   </div>
-                  <p className="text-sm text-textMuted">No hay actividad reciente en tu tenant.</p>
-                </div>
-              )}
-            </div>
-
-            <Button 
-              variant="outline" 
-              onClick={() => navigate('/orders')}
-              className="mt-6 w-full border-white/10 hover:bg-white/5 py-4 rounded-2xl text-xs font-bold uppercase tracking-widest gap-2"
-            >
-              Ver Todo el Historial <ChevronRight size={14} />
-            </Button>
-          </Card>
-
-          {/* Mini Stats / Tips */}
-          <Card className="glass-panel p-4 bg-gradient-to-br from-primary/20 to-accent/5 border-primary/20 border-2">
-            <div className="flex gap-4">
-              <div className="p-3 bg-primary rounded-2xl text-white shadow-neon-blue shrink-0">
-                <Zap size={20} />
-              </div>
-              <div>
-                <p className="text-sm font-black text-text">Tip de Eficiencia</p>
-                <p className="text-xs text-textMuted mt-1 leading-relaxed">
-                  Las rutas optimizadas hoy pueden reducir tus costos en un <span className="text-primary font-bold">15%</span>. Usa el mapa en vivo para monitorear desviaciones.
-                </p>
-              </div>
-            </div>
-          </Card>
-        </div>
+                  
+                  <div className="space-y-1">
+                    <p className="text-sm font-black text-text truncate group-hover:text-primary transition-colors">{order.client}</p>
+                    <p className="text-[10px] text-textMuted font-bold uppercase tracking-wider">
+                      {order.city} · <span className="opacity-60">{order.createdAt?.toDate ? order.createdAt.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Hace poco'}</span>
+                    </p>
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </div>
+          
+          <div className="mt-8 pt-6 border-t border-white/5">
+             <div className="bg-primary/10 rounded-2xl p-4 flex items-center justify-between">
+                <span className="text-xs font-bold text-primary">Margen Operativo</span>
+                <span className="text-lg font-black text-text">94.2%</span>
+             </div>
+          </div>
+        </Card>
       </div>
     </div>
   );

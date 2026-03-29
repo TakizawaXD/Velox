@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 
 // Credenciales leídas desde el archivo .env
 const firebaseConfig = {
@@ -12,14 +12,13 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
+// Check if project ID is missing
+if (!firebaseConfig.projectId) {
+  console.error("Firebase Project ID is missing. Check your .env file!");
+}
+
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-
-// Firestore con caché local (IndexedDB) — carga instantánea en reinicios
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
-  })
-});
+export const db = getFirestore(app);
 

@@ -1,35 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
-import { Eye, MapPin, Search, Plus, DollarSign, Download, Truck, X, Activity } from 'lucide-react';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, where } from 'firebase/firestore';
+import { 
+  Search, Plus, Filter, 
+  MapPin, Clock, Truck,
+  Edit2, Trash2, User
+} from 'lucide-react';
+import { collection, onSnapshot, query, where, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
+import { toast } from 'react-hot-toast';
 
-const CIUDADES_CO = [
-  'Bogotá D.C.', 'Medellín', 'Cali', 'Barranquilla', 'Cartagena de Indias',
-  'Cúcuta', 'Bucaramanga', 'Pereira', 'Santa Marta', 'Ibagué', 'Pasto',
-  'Manizales', 'Neiva', 'Villavicencio', 'Armenia', 'Valledupar', 'Montería',
-  'Sincelejo', 'Popayán', 'Florencia', 'Tunja', 'Riohacha', 'Quibdó',
-  'Yopal', 'Mocoa', 'Inírida', 'Mitú', 'Puerto Carreño', 'San Andrés',
-];
-
-const TIPOS_PAQUETE = [
-  'Documento / Sobre', 'Paquete Pequeño (< 2 kg)', 'Paquete Mediano (2-10 kg)',
-  'Paquete Grande (10-30 kg)', 'Mercancía / Carga', 'Frágil', 'Perecedero / Alimentos',
-  'Medicamentos', 'Electrónico', 'Ropa / Textil',
-];
-
-const FORMAS_PAGO = [
-  'Efectivo (al recibir)', 'Transferencia Bancaria', 'Nequi', 'Daviplata',
-  'Bancolombia a la mano', 'Tarjeta Crédito/Débito', 'Contra entrega',
-];
-
-const STATUS_FLOW = ['Pendiente', 'Preparando', 'En camino', 'Entregado', 'Cancelado'];
+const PAYMENT_METHODS = ['Efectivo (al recibir)', 'Nequi', 'Daviplata', 'Transferencia Bancaria', 'Contraentrega Datáfono'];
+const SERVICE_TYPES = ['Estándar', 'Express (Premium)', 'Económico'];
+const PRIORITIES = ['Baja', 'Media', 'Alta', 'Urgente'];
 
 const inputCls = 'w-full rounded-xl border border-white/10 bg-surface/60 py-2.5 px-3 text-sm text-text placeholder:text-textMuted/60 focus:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all';
 const labelCls = 'block text-xs font-semibold text-textMuted uppercase tracking-wider mb-1.5';
@@ -43,455 +31,481 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-2 pt-2 pb-1">
-      <div className="h-px flex-1 bg-white/5" />
-      <span className="text-[10px] font-bold uppercase tracking-widest text-textMuted/60">{children}</span>
-      <div className="h-px flex-1 bg-white/5" />
-    </div>
-  );
-}
-
 const emptyOrder = {
-  client: '', clientPhone: '', clientId: '',
-  address: '', city: 'Bogotá D.C.', neighborhood: '',
-  packageType: '', weight: '', description: '',
-  declaredValue: '', amount: '', paymentMethod: 'Efectivo (al recibir)',
-  notes: '',
+  client: '',
+  clientId: '',
+  clientPhone: '',
+  address: '',
+  city: 'Bogotá D.C.',
+  neighborhood: '',
+  packageType: 'Paquete Pequeño',
+  weight: '',
+  amount: '',
+  paymentMethod: 'Efectivo (al recibir)',
+  description: '',
+  declaredValue: '',
+  serviceType: 'Estándar',
+  priority: 'Media',
 };
 
 export function Orders() {
   const { currentUser } = useAuth();
-  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('Todos');
-  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [newOrder, setNewOrder] = useState(emptyOrder);
-  const [isCreating, setIsCreating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Custom Customer Selection
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [showCustomerList, setShowCustomerList] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
+
     const q = query(
       collection(db, 'orders'),
-      where('tenantId', '==', currentUser.uid),
-      orderBy('createdAt', 'desc')
+      where('tenantId', '==', currentUser.uid)
     );
+
     const unsub = onSnapshot(q, (snap) => {
-      setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Ordenamiento manual en cliente para evitar error de índice compuesto inicial
+      data.sort((a: any, b: any) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+        return dateB.getTime() - dateA.getTime();
+      });
+      setOrders(data);
       setIsLoading(false);
     });
-    return unsub;
+
+    // Load customers for selection
+    const qCust = query(collection(db, 'customers'), where('tenantId', '==', currentUser.uid));
+    const unsubCust = onSnapshot(qCust, (snap) => {
+      setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    return () => { unsub(); unsubCust(); };
   }, [currentUser]);
 
-  const handleUpdateStatus = async (orderId: string, newStatus: string) => {
-    try {
-      await updateDoc(doc(db, 'orders', orderId), { status: newStatus });
-      if (selectedOrder?.id === orderId) setSelectedOrder({ ...selectedOrder, status: newStatus });
-    } catch (e) { console.error(e); }
+  const handleOpenModal = (order: any = null) => {
+    if (order) {
+      setIsEditing(true);
+      setEditingOrderId(order.id);
+      setNewOrder({
+        client: order.client || '',
+        clientId: order.clientId || '',
+        clientPhone: order.clientPhone || '',
+        address: order.address || '',
+        city: order.city || 'Bogotá D.C.',
+        neighborhood: order.neighborhood || '',
+        packageType: order.packageType || 'Paquete Pequeño',
+        weight: order.weight || '',
+        amount: order.amount || '',
+        paymentMethod: order.paymentMethod || 'Efectivo (al recibir)',
+        description: order.description || '',
+        declaredValue: order.declaredValue || '',
+        serviceType: order.serviceType || 'Estándar',
+        priority: order.priority || 'Media',
+      });
+    } else {
+      setIsEditing(false);
+      setEditingOrderId(null);
+      setNewOrder(emptyOrder);
+    }
+    setIsModalOpen(true);
   };
 
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
-    setIsCreating(true);
+    setIsSaving(true);
     try {
       const now = new Date();
-      const ref = await addDoc(collection(db, 'orders'), {
-        ...newOrder,
-        amount: Number(newOrder.amount),
-        declaredValue: Number(newOrder.declaredValue),
-        weight: Number(newOrder.weight),
-        status: 'Pendiente',
-        driver: 'Por Asignar',
-        time: '-',
-        tenantId: currentUser.uid,
-        createdAt: now,
-      });
-      await updateDoc(ref, { id: `ORD-${ref.id.substring(0, 6).toUpperCase()}` });
-      setIsNewModalOpen(false);
-      setNewOrder(emptyOrder);
-    } catch (err) { console.error(err); }
-    finally { setIsCreating(false); }
+      if (isEditing && editingOrderId) {
+        await updateDoc(doc(db, 'orders', editingOrderId), {
+          ...newOrder,
+          amount: Number(newOrder.amount),
+          declaredValue: Number(newOrder.declaredValue),
+          weight: Number(newOrder.weight),
+          updatedAt: now,
+        });
+        toast.success('Pedido actualizado');
+      } else {
+        const ref = await addDoc(collection(db, 'orders'), {
+          ...newOrder,
+          status: 'Pendiente',
+          driver: 'Por Asignar',
+          time: '-',
+          amount: Number(newOrder.amount),
+          declaredValue: Number(newOrder.declaredValue),
+          weight: Number(newOrder.weight),
+          tenantId: currentUser.uid,
+          createdAt: serverTimestamp(),
+        });
+        await updateDoc(ref, { id: `ORD-${ref.id.substring(0, 6).toUpperCase()}` });
+        toast.success('Nuevo pedido registrado');
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al procesar el pedido');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const field = (key: keyof typeof emptyOrder) => ({
-    value: newOrder[key],
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-      setNewOrder({ ...newOrder, [key]: e.target.value }),
-  });
-
-  const filteredOrders = orders.filter(o => {
-    const matchSearch = !searchTerm ||
-      o.client?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.city?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchStatus = filterStatus === 'Todos' || o.status === filterStatus;
-    return matchSearch && matchStatus;
-  });
-
-  const getStatusBadge = (status: string) => ({
-    'Pendiente': <Badge variant="warning">Pendiente</Badge>,
-    'Preparando': <Badge variant="primary">Preparando</Badge>,
-    'En camino': <Badge variant="primary" className="animate-pulse">En camino</Badge>,
-    'Entregado': <Badge variant="success">Entregado</Badge>,
-    'Cancelado': <Badge variant="danger">Cancelado</Badge>,
-  }[status] ?? <Badge>{status}</Badge>);
-
-  const exportCSV = () => {
-    const headers = 'ID,Cliente,Teléfono,Ciudad,Dirección,Tipo,Tarifa,Pago,Estado,Repartidor';
-    const rows = orders.map(o =>
-      `${o.id},${o.client},${o.clientPhone},${o.city},${o.address},${o.packageType},${o.amount},${o.paymentMethod},${o.status},${o.driver}`
-    );
-    const blob = new Blob([headers + '\n' + rows.join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'pedidos-velox.csv'; a.click();
+  const copyTrackingLink = (id: string) => {
+    const link = `https://velox.app/track/${id}`;
+    navigator.clipboard.writeText(link);
+    toast.success('Link de rastreo copiado');
   };
+
+  const handleDeleteOrder = async (id: string) => {
+    if (!window.confirm('¿Estás seguro de eliminar este despacho?')) return;
+    try {
+      await deleteDoc(doc(db, 'orders', id));
+      toast.success('Despacho eliminado');
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al eliminar despacho');
+    }
+  };
+
+  const selectCustomer = (c: any) => {
+    setNewOrder({
+      ...newOrder,
+      client: c.name,
+      clientId: c.idNumber || '',
+      clientPhone: c.phone || '',
+      address: c.address || '',
+      city: c.city || 'Bogotá D.C.',
+      neighborhood: c.neighborhood || '',
+    });
+    setShowCustomerList(false);
+  };
+
+  const filteredOrders = orders.filter(o => 
+    o.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    o.client?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-text">Gestión de Pedidos</h1>
-          <p className="text-textMuted text-sm">Despachos y seguimiento en Colombia · {orders.length} registros</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-text tracking-tight">Gestión de Despachos</h1>
+          <p className="text-textMuted text-sm">Control centralizado de recolecciones y entregas.</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" className="gap-2 text-sm" onClick={exportCSV}>
-            <Download size={15} /> CSV
-          </Button>
-          <Button className="gap-2 shadow-neon-blue text-sm" onClick={() => setIsNewModalOpen(true)}>
-            <Plus size={16} /> Nuevo Pedido
-          </Button>
-        </div>
+        <Button className="shadow-neon-blue gap-2" onClick={() => handleOpenModal()}>
+          <Plus size={18} /> Crear Envío
+        </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-textMuted" />
           <input
             type="text"
-            placeholder="Buscar por ID, cliente, ciudad..."
+            placeholder="Buscar por ID de pedido o cliente..."
             className="w-full bg-surface border border-white/10 text-sm text-text placeholder:text-textMuted rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-primary/50"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="flex gap-1.5 flex-wrap">
-          {['Todos', ...STATUS_FLOW].map(s => (
-            <button
-              key={s}
-              onClick={() => setFilterStatus(s)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === s ? 'bg-primary text-white shadow-neon-blue' : 'bg-surface text-textMuted hover:bg-surfaceHover border border-white/10'}`}
-            >{s}</button>
-          ))}
-        </div>
+        <Button variant="outline" className="gap-2 border-white/10">
+          <Filter size={16} /> Filtros
+        </Button>
       </div>
 
-      {/* Table */}
-      {/* Table / Grid */}
-      <Card className="glass-panel overflow-hidden p-0 border-white/5">
+      <Card className="glass-panel overflow-hidden p-0 border-white/5 relative min-h-[400px]">
         {isLoading ? (
-          <div className="p-20 flex flex-col items-center justify-center text-textMuted gap-4">
-             <Activity className="animate-spin text-primary" size={32} />
-             <p className="font-bold">Cargando base de datos...</p>
+          <div className="absolute inset-0 flex items-center justify-center text-textMuted">
+            <Activity className="animate-spin text-primary mr-2" size={20} /> Recuperando pedidos activos...
           </div>
         ) : (
-          <>
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Ciudad / Barrio</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Repartidor</TableHead>
-                    <TableHead>Pago</TableHead>
-                    <TableHead>Tarifa</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right whitespace-nowrap px-4">Acción</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <AnimatePresence>
-                    {filteredOrders.map((order, i) => (
-                      <motion.tr
-                        key={order.id}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.04 }}
-                        className="group border-b border-white/5 hover:bg-surfaceHover/40 transition-colors"
-                      >
-                        <TableCell className="font-mono text-primary text-xs font-bold">{order.id}</TableCell>
-                        <TableCell>
-                          <div className="font-medium text-sm text-text">{order.client}</div>
-                          <div className="text-xs text-textMuted">{order.clientPhone}</div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm font-medium">{order.city}</div>
-                          <div className="text-xs text-textMuted truncate max-w-[140px]">{order.neighborhood}</div>
-                        </TableCell>
-                        <TableCell className="text-xs text-textMuted whitespace-nowrap">{order.packageType}</TableCell>
-                        <TableCell className="text-sm text-textMuted whitespace-nowrap">{order.driver}</TableCell>
-                        <TableCell className="text-xs text-textMuted whitespace-nowrap">{order.paymentMethod}</TableCell>
-                        <TableCell className="font-mono font-black text-text whitespace-nowrap">
-                          ${Number(order.amount || 0).toLocaleString('es-CO')}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(order.status)}</TableCell>
-                        <TableCell className="text-right pr-4">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 rounded-xl hover:bg-primary/20 hover:text-primary transition-all opacity-0 group-hover:opacity-100"
-                            onClick={() => setSelectedOrder(order)}
-                          >
-                            <Eye size={16} />
-                          </Button>
-                        </TableCell>
-                      </motion.tr>
-                    ))}
-                  </AnimatePresence>
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* Mobile Card View */}
-            <div className="md:hidden divide-y divide-white/5">
-              {filteredOrders.map((order, i) => (
-                <motion.div 
-                  key={order.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  onClick={() => setSelectedOrder(order)}
-                  className="p-4 active:bg-white/5 transition-colors space-y-3"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-primary text-[10px] font-black">{order.id}</span>
-                        {getStatusBadge(order.status)}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Pedido ID</TableHead>
+                  <TableHead>Cliente / Destino</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Repartidor</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredOrders.map((order) => (
+                  <TableRow key={order.id} className="group hover:bg-surfaceHover/30 transition-colors">
+                    <TableCell className="font-mono text-xs font-bold text-primary">
+                      {order.id?.substring(0, 10)}
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-semibold text-text">{order.client}</p>
+                        <p className="text-xs text-textMuted flex items-center gap-1 mt-0.5">
+                          <MapPin size={10} /> {order.address}
+                        </p>
                       </div>
-                      <p className="font-black text-text text-base leading-tight">{order.client}</p>
-                    </div>
-                    <p className="font-black text-text text-sm">${Number(order.amount || 0).toLocaleString('es-CO')}</p>
-                  </div>
-                  
-                  <div className="flex items-center justify-between gap-4 text-xs text-textMuted">
-                    <div className="flex items-center gap-1.5 truncate">
-                      <MapPin size={12} className="shrink-0" />
-                      <span className="truncate">{order.city} · {order.neighborhood}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <Truck size={12} />
-                      <span className="font-bold">{order.driver?.split(' ')[0]}</span>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-
-            {filteredOrders.length === 0 && (
-              <div className="text-center py-20 px-6 space-y-4">
-                <div className="mx-auto w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
-                   <Search size={28} className="text-textMuted opacity-20" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-text">No se encontraron resultados</h3>
-                  <p className="text-sm text-textMuted max-w-xs mx-auto">Intenta ajustar los filtros o verifica el ID del despacho.</p>
-                </div>
-              </div>
-            )}
-          </>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1.5">
+                        <Badge 
+                          variant={order.status === 'Entregado' ? 'success' : order.status === 'En camino' ? 'primary' : 'default'}
+                        >
+                          {order.status}
+                        </Badge>
+                        <span className={`text-[9px] font-black uppercase text-center px-1.5 py-0.5 rounded-full border ${
+                          order.priority === 'Alta' || order.priority === 'Urgente' ? 'bg-danger/10 text-danger border-danger/20' : 
+                          order.priority === 'Media' ? 'bg-warning/10 text-warning border-warning/20' : 'bg-success/10 text-success border-success/20'
+                        }`}>
+                          Prioridad {order.priority}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                          <Truck size={12} className="text-textMuted" />
+                        </div>
+                        <span className="text-sm font-medium">{order.driver}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-bold text-text">
+                      ${Number(order.amount).toLocaleString('es-CO')}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary/80" onClick={() => copyTrackingLink(order.id)}>
+                          <MapPin size={14} />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleOpenModal(order)}>
+                          <Edit2 size={14} />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-danger" onClick={() => handleDeleteOrder(order.id)}>
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredOrders.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-20 text-textMuted">
+                      No hay pedidos que coincidan con la búsqueda.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </Card>
 
-      {/* ===================== MODAL DETALLE ===================== */}
-      <Modal isOpen={!!selectedOrder} onClose={() => setSelectedOrder(null)} title={`Pedido ${selectedOrder?.id}`}>
-        {selectedOrder && (
-          <div className="space-y-5">
-            {/* Estado + Acciones */}
-            <div className="flex items-center justify-between">
-              {getStatusBadge(selectedOrder.status)}
-              <div className="flex gap-2 flex-wrap">
-                {selectedOrder.status !== 'Entregado' && selectedOrder.status !== 'Cancelado' && (
-                  <>
-                    {selectedOrder.status === 'Pendiente' && (
-                      <Button size="sm" variant="outline" onClick={() => handleUpdateStatus(selectedOrder.id, 'Preparando')}>
-                        Preparar
-                      </Button>
-                    )}
-                    <Button size="sm" variant="outline" className="border-primary text-primary" onClick={() => handleUpdateStatus(selectedOrder.id, 'En camino')}>
-                      En Camino
-                    </Button>
-                    <Button size="sm" variant="success" onClick={() => handleUpdateStatus(selectedOrder.id, 'Entregado')}>
-                      Entregado ✓
-                    </Button>
-                    <Button size="sm" variant="danger" onClick={() => handleUpdateStatus(selectedOrder.id, 'Cancelado')}>
-                      <X size={14} />
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { l: 'Cliente', v: selectedOrder.client },
-                { l: 'Cédula/NIT', v: selectedOrder.clientId || '-' },
-                { l: 'Teléfono', v: selectedOrder.clientPhone || '-' },
-                { l: 'Repartidor', v: selectedOrder.driver },
-                { l: 'Ciudad', v: selectedOrder.city || '-' },
-                { l: 'Barrio', v: selectedOrder.neighborhood || '-' },
-                { l: 'Tipo Paquete', v: selectedOrder.packageType || '-' },
-                { l: 'Peso', v: selectedOrder.weight ? `${selectedOrder.weight} kg` : '-' },
-                { l: 'Forma de Pago', v: selectedOrder.paymentMethod || '-' },
-                { l: 'Valor Declarado', v: selectedOrder.declaredValue ? `$${Number(selectedOrder.declaredValue).toLocaleString('es-CO')}` : '-' },
-              ].map(({ l, v }) => (
-                <div key={l} className="bg-surfaceHover/40 rounded-xl p-3 border border-white/5">
-                  <p className="text-[10px] text-textMuted uppercase tracking-wider mb-0.5">{l}</p>
-                  <p className="font-medium text-sm text-text">{v}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="bg-surfaceHover/40 rounded-xl p-3 border border-white/5">
-              <p className="text-[10px] text-textMuted uppercase tracking-wider mb-1">Dirección Completa</p>
-              <p className="text-sm text-text flex items-start gap-1.5">
-                <MapPin size={14} className="text-primary shrink-0 mt-0.5" />
-                {selectedOrder.address}, {selectedOrder.neighborhood}, {selectedOrder.city}
-              </p>
-            </div>
-
-            {selectedOrder.description && (
-              <div className="bg-surfaceHover/40 rounded-xl p-3 border border-white/5">
-                <p className="text-[10px] text-textMuted uppercase tracking-wider mb-1">Contenido / Descripción</p>
-                <p className="text-sm text-text">{selectedOrder.description}</p>
-              </div>
-            )}
-
-            {selectedOrder.notes && (
-              <div className="bg-primary/5 rounded-xl p-3 border border-primary/10">
-                <p className="text-[10px] text-primary uppercase tracking-wider mb-1">Notas Especiales</p>
-                <p className="text-sm text-text">{selectedOrder.notes}</p>
-              </div>
-            )}
-
-            <div className="border-t border-white/10 pt-4 flex items-center justify-between">
-              <span className="text-textMuted text-sm font-medium">Tarifa de Envío</span>
-              <span className="text-2xl font-bold font-mono text-text">
-                ${Number(selectedOrder.amount || 0).toLocaleString('es-CO')} COP
-              </span>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* ===================== MODAL NUEVO PEDIDO ===================== */}
-      <Modal isOpen={isNewModalOpen} onClose={() => setIsNewModalOpen(false)} title="Generar Nuevo Pedido">
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        title={isEditing ? 'Editar Despacho' : 'Nuevo Despacho Velox'}
+      >
         <form onSubmit={handleCreateOrder} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-          <SectionTitle>📦 Información del Cliente</SectionTitle>
+          <div className="flex justify-between items-center bg-primary/10 p-3 rounded-xl border border-primary/20 mb-4">
+            <div className="flex items-center gap-2 text-primary font-bold text-sm">
+              <User size={16} /> CLIENTE SELECCIONADO
+            </div>
+            {!isEditing && (
+              <Button type="button" size="sm" variant="outline" className="text-[10px]" onClick={() => setShowCustomerList(!showCustomerList)}>
+                {showCustomerList ? 'Cerrar Lista' : 'Elegir de Directorio'}
+              </Button>
+            )}
+          </div>
+
+          {!isEditing && showCustomerList && (
+             <div className="bg-surfaceHover/50 rounded-xl p-2 border border-white/10 mb-4 max-h-40 overflow-y-auto space-y-1">
+                {customers.length === 0 && <p className="text-[10px] text-center py-2 text-textMuted">No hay clientes en el directorio</p>}
+                {customers.map(c => (
+                  <button 
+                    key={c.id} 
+                    type="button"
+                    onClick={() => selectCustomer(c)}
+                    className="w-full text-left p-2 rounded-lg hover:bg-primary/20 flex items-center justify-between group transition-all"
+                  >
+                    <span className="text-xs font-bold text-text">{c.name}</span>
+                    <span className="text-[10px] text-textMuted opacity-0 group-hover:opacity-100 uppercase font-black">Seleccionar</span>
+                  </button>
+                ))}
+             </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FieldGroup label="Nombre Completo *">
-              <input required className={inputCls} placeholder="Ej. Carlos Rodríguez" {...field('client')} />
+            <FieldGroup label="Nombre Cliente / Negocio *">
+              <input 
+                required 
+                className={inputCls} 
+                placeholder="Ej. Juan Pérez" 
+                value={newOrder.client}
+                onChange={e => setNewOrder({ ...newOrder, client: e.target.value })}
+              />
             </FieldGroup>
             <FieldGroup label="Cédula / NIT">
-              <input className={inputCls} placeholder="Ej. 1020304050" {...field('clientId')} />
+              <input 
+                className={inputCls} 
+                placeholder="Ej. 12345678" 
+                value={newOrder.clientId}
+                onChange={e => setNewOrder({ ...newOrder, clientId: e.target.value })}
+              />
             </FieldGroup>
             <FieldGroup label="Teléfono de Contacto *">
-              <input required className={inputCls} placeholder="+57 310 000 0000" type="tel" {...field('clientPhone')} />
+              <input 
+                required 
+                className={inputCls} 
+                type="tel" 
+                placeholder="310 000 0000" 
+                value={newOrder.clientPhone}
+                onChange={e => setNewOrder({ ...newOrder, clientPhone: e.target.value })}
+              />
             </FieldGroup>
-            <FieldGroup label="Forma de Pago *">
-              <select required className={inputCls} {...field('paymentMethod')}>
-                {FORMAS_PAGO.map(p => <option key={p}>{p}</option>)}
-              </select>
+            <FieldGroup label="Ciudad *">
+              <input required className={inputCls} value={newOrder.city} readOnly />
             </FieldGroup>
           </div>
 
-          <SectionTitle>📍 Destino de Entrega</SectionTitle>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FieldGroup label="Ciudad / Municipio *">
-              <select required className={inputCls} {...field('city')}>
-                {CIUDADES_CO.map(c => <option key={c}>{c}</option>)}
-              </select>
-            </FieldGroup>
-            <FieldGroup label="Barrio / Sector">
-              <input className={inputCls} placeholder="Ej. Chapinero, El Poblado" {...field('neighborhood')} />
-            </FieldGroup>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
             <div className="sm:col-span-2">
-              <FieldGroup label="Dirección de Entrega *">
-                <input required className={inputCls} placeholder="Ej. Cra 7 #45-20, Apto 301, junto al banco" {...field('address')} />
-              </FieldGroup>
-            </div>
-          </div>
-
-          <SectionTitle>🚚 Detalles del Paquete</SectionTitle>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FieldGroup label="Tipo de Paquete *">
-              <select required className={inputCls} {...field('packageType')}>
-                <option value="">Seleccionar...</option>
-                {TIPOS_PAQUETE.map(t => <option key={t}>{t}</option>)}
-              </select>
-            </FieldGroup>
-            <FieldGroup label="Peso Aproximado (kg)">
-              <input className={inputCls} type="number" step="0.1" min="0" placeholder="Ej. 1.5" {...field('weight')} />
-            </FieldGroup>
-            <div className="sm:col-span-2">
-              <FieldGroup label="Descripción del Contenido">
-                <textarea
-                  className={inputCls + ' resize-none h-16'}
-                  placeholder="Ej. 2 camisas azules, 1 pantalón negro"
-                  value={newOrder.description}
-                  onChange={e => setNewOrder({ ...newOrder, description: e.target.value })}
+              <FieldGroup label="Dirección Exacta *">
+                <input 
+                  required 
+                  className={inputCls} 
+                  placeholder="Ej. Calle 10 #20-30" 
+                  value={newOrder.address}
+                  onChange={e => setNewOrder({ ...newOrder, address: e.target.value })}
                 />
               </FieldGroup>
             </div>
+            <FieldGroup label="Barrio / Localidad">
+              <input 
+                className={inputCls} 
+                placeholder="Ej. Chapinero" 
+                value={newOrder.neighborhood}
+                onChange={e => setNewOrder({ ...newOrder, neighborhood: e.target.value })}
+              />
+            </FieldGroup>
+            <FieldGroup label="Tipo de Paquete">
+              <select 
+                className={inputCls}
+                value={newOrder.packageType}
+                onChange={e => setNewOrder({ ...newOrder, packageType: e.target.value })}
+              >
+                <option>Paquete Pequeño</option>
+                <option>Mediano</option>
+                <option>Grande / Voluminoso</option>
+                <option>Sobre / Documento</option>
+              </select>
+            </FieldGroup>
+            <FieldGroup label="Tipo de Servicio VIP">
+              <select 
+                className={inputCls}
+                value={newOrder.serviceType}
+                onChange={e => {
+                  const val = e.target.value;
+                  // Auto-adjust amount if Express
+                  let newAmount = newOrder.amount;
+                  if (val.includes('Express') && !newOrder.serviceType.includes('Express')) {
+                     newAmount = String(Math.round(Number(newOrder.amount || 0) * 1.3));
+                  }
+                  setNewOrder({ ...newOrder, serviceType: val, amount: newAmount });
+                }}
+              >
+                {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </FieldGroup>
+            <FieldGroup label="Prioridad Logística">
+              <select 
+                className={inputCls}
+                value={newOrder.priority}
+                onChange={e => setNewOrder({ ...newOrder, priority: e.target.value })}
+              >
+                {PRIORITIES.map(p => <option key={p}>{p}</option>)}
+              </select>
+            </FieldGroup>
           </div>
 
-          <SectionTitle>💰 Valores y Tarifa</SectionTitle>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FieldGroup label="Valor Declarado de la Mercancía (COP)">
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-textMuted" />
-                <input className={inputCls + ' pl-8'} type="number" min="0" placeholder="0" {...field('declaredValue')} />
-              </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t border-white/5 mt-4">
+            <FieldGroup label="Valor Pedido *">
+              <input 
+                required 
+                type="number" 
+                className={inputCls} 
+                placeholder="$0" 
+                value={newOrder.amount}
+                onChange={e => setNewOrder({ ...newOrder, amount: e.target.value })}
+              />
             </FieldGroup>
-            <FieldGroup label="Tarifa de Envío (COP) *">
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-textMuted" />
-                <input required className={inputCls + ' pl-8'} type="number" min="1" placeholder="0" {...field('amount')} />
-              </div>
+            <FieldGroup label="V. Declarado *">
+              <input 
+                required 
+                type="number" 
+                className={inputCls} 
+                placeholder="$0" 
+                value={newOrder.declaredValue}
+                onChange={e => setNewOrder({ ...newOrder, declaredValue: e.target.value })}
+              />
             </FieldGroup>
-            <div className="sm:col-span-2">
-              <FieldGroup label="Notas / Instrucciones Especiales">
-                <textarea
-                  className={inputCls + ' resize-none h-16'}
-                  placeholder="Ej. Llamar antes de llegar, no dejar con portero"
-                  value={newOrder.notes}
-                  onChange={e => setNewOrder({ ...newOrder, notes: e.target.value })}
-                />
-              </FieldGroup>
-            </div>
+            <FieldGroup label="Peso (Kg)">
+              <input 
+                type="number" 
+                className={inputCls} 
+                placeholder="0.0" 
+                value={newOrder.weight}
+                onChange={e => setNewOrder({ ...newOrder, weight: e.target.value })}
+              />
+            </FieldGroup>
           </div>
 
-          <div className="flex gap-3 justify-end pt-2 border-t border-white/5">
-            <Button type="button" variant="outline" onClick={() => setIsNewModalOpen(false)}>Cancelar</Button>
-            <Button type="submit" isLoading={isCreating} className="shadow-neon-blue gap-2">
-              <Truck size={16} /> Registrar Pedido
+          <FieldGroup label="Método de Pago *">
+            <select 
+              className={inputCls}
+              value={newOrder.paymentMethod}
+              onChange={e => setNewOrder({ ...newOrder, paymentMethod: e.target.value })}
+            >
+              {PAYMENT_METHODS.map(m => <option key={m}>{m}</option>)}
+            </select>
+          </FieldGroup>
+
+          <FieldGroup label="Descripción del Contenido">
+            <textarea
+              className={inputCls + ' resize-none h-20'}
+              placeholder="Ej. Ropa de bebé, frágil..."
+              value={newOrder.description}
+              onChange={e => setNewOrder({ ...newOrder, description: e.target.value })}
+            />
+          </FieldGroup>
+
+          <div className="flex gap-3 justify-end pt-4 border-t border-white/5">
+            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
+            <Button type="submit" isLoading={isSaving} className="shadow-neon-blue">
+              {isEditing ? 'Guardar Cambios' : 'Confirmar Despacho'}
             </Button>
           </div>
         </form>
       </Modal>
     </div>
+  );
+}
+
+function Activity({ className, size }: { className?: string; size?: number }) {
+  return (
+    <motion.div
+      animate={{ rotate: 360 }}
+      transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+      className={className}
+    >
+      <Clock size={size} />
+    </motion.div>
   );
 }

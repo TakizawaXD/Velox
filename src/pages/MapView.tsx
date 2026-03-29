@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { Box, Navigation, Info, Maximize, Target } from 'lucide-react';
+import { Box, Navigation, Info, Maximize, Target, Phone, User } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
@@ -47,38 +48,57 @@ function ChangeView({ center, zoom }: { center: [number, number], zoom: number }
 
 export function MapView() {
   const { currentUser } = useAuth();
+  const location = useLocation();
   const [orders, setOrders] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [mapCenter, setMapCenter] = useState<[number, number]>(BOGOTA_CENTER);
   const [zoom, setZoom] = useState(12);
+  const [hasReferencedDriver, setHasReferencedDriver] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
 
     const qO = query(collection(db, 'orders'), where('tenantId', '==', currentUser.uid));
     const unsubO = onSnapshot(qO, (snap) => {
-        // En un caso real geodificariamos las direcciones. 
-        // Aquí simularemos coordenadas basadas en el índice para ver algo en el mapa de Bogotá.
-        setOrders(snap.docs.map((d) => ({
-            id: d.id,
-            ...d.data(),
-            lat: BOGOTA_CENTER[0] + (Math.random() - 0.5) * 0.1,
-            lng: BOGOTA_CENTER[1] + (Math.random() - 0.5) * 0.1,
-        })));
+        setOrders(snap.docs.map((d) => {
+            const data = d.data();
+            return {
+                id: d.id,
+                ...data,
+                // Use coordinates from document if available, otherwise random offset from Bogota
+                lat: data.lat || (BOGOTA_CENTER[0] + (Math.random() - 0.5) * 0.1),
+                lng: data.lng || (BOGOTA_CENTER[1] + (Math.random() - 0.5) * 0.1),
+            };
+        }));
     });
 
     const qD = query(collection(db, 'drivers'), where('tenantId', '==', currentUser.uid));
     const unsubD = onSnapshot(qD, (snap) => {
-        setDrivers(snap.docs.map((d) => ({
-            id: d.id,
-            ...d.data(),
-            lat: BOGOTA_CENTER[0] + (Math.random() - 0.5) * 0.08,
-            lng: BOGOTA_CENTER[1] + (Math.random() - 0.5) * 0.08,
-        })));
+        setDrivers(snap.docs.map((d) => {
+            const data = d.data();
+            return {
+                id: d.id,
+                ...data,
+                lat: data.lat || (BOGOTA_CENTER[0] + (Math.random() - 0.5) * 0.08),
+                lng: data.lng || (BOGOTA_CENTER[1] + (Math.random() - 0.5) * 0.08),
+            };
+        }));
     });
 
     return () => { unsubO(); unsubD(); };
   }, [currentUser]);
+
+  // Handle focused driver from navigation state
+  useEffect(() => {
+    if (drivers.length > 0 && location.state?.selectedDriverId && !hasReferencedDriver) {
+      const target = drivers.find(d => d.id === location.state.selectedDriverId);
+      if (target && target.lat && target.lng) {
+        setMapCenter([target.lat, target.lng]);
+        setZoom(16);
+        setHasReferencedDriver(true);
+      }
+    }
+  }, [drivers, location.state, hasReferencedDriver]);
 
   return (
     <div className="h-[calc(100vh-140px)] flex flex-col gap-6">
@@ -138,10 +158,44 @@ export function MapView() {
                 position={[driver.lat, driver.lng]} 
                 icon={driver.status === 'Disponible' ? goldIcon : redIcon}
               >
-                <Popup>
-                   <div className="p-1">
-                      <p className="font-black text-primary">{driver.name}</p>
-                      <p className="text-[10px] font-bold text-gray-500 uppercase">{driver.vehicleType} · {driver.plate}</p>
+                <Popup className="velox-popup">
+                   <div className="p-3 min-w-[200px] space-y-3">
+                      <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                        <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                          <User size={14} />
+                        </div>
+                        <div>
+                          <p className="font-black text-sm text-gray-900 leading-none">{driver.name}</p>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase mt-1">Repartidor Velox</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-bold text-gray-400 uppercase">Vehículo</span>
+                          <span className="text-xs font-bold text-gray-700">{driver.vehicleType || 'Moto'}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-bold text-gray-400 uppercase">Placa</span>
+                          <span className="text-xs font-bold text-primary tracking-widest">{driver.plate || '---'}</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 pt-1">
+                        <div className="flex items-center justify-between">
+                           <Badge variant={driver.status === 'Disponible' ? 'success' : 'primary'} className="text-[9px]">
+                             {driver.status}
+                           </Badge>
+                           <span className="text-[10px] font-bold text-gray-400">{driver.zone || 'Bogotá'}</span>
+                        </div>
+                        
+                        <a 
+                          href={`tel:${driver.phone}`} 
+                          className="flex items-center justify-center gap-2 w-full py-2 bg-primary text-white text-[10px] font-black rounded-lg hover:bg-primary-dark transition-colors no-underline shadow-sm"
+                        >
+                          <Phone size={12} /> LLAMAR AHORA
+                        </a>
+                      </div>
                    </div>
                 </Popup>
               </Marker>

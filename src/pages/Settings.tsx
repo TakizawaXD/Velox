@@ -67,6 +67,7 @@ export function Settings() {
   // Organización state
   const [company, setCompany] = useState('');
   const [brandName, setBrandName] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
   const [nit, setNit] = useState('');
   const [address, setAddress] = useState('');
   const [website, setWebsite] = useState('');
@@ -102,6 +103,7 @@ export function Settings() {
           setPhone(data.phone || '');
           setCompany(data.company || '');
           setBrandName(data.brandName || data.company || '');
+          setLogoUrl(data.logoUrl || '');
           setNit(data.nit || '');
           setAddress(data.address || '');
           setWebsite(data.website || '');
@@ -151,6 +153,7 @@ export function Settings() {
       await updateDoc(doc(db, 'users', currentUser.uid), {
         company,
         brandName: brandName || company,
+        logoUrl,
         nit,
         address,
         website,
@@ -427,15 +430,27 @@ export function Settings() {
                     </SettingField>
 
                     <div className="md:col-span-2">
-                      <SettingField label="Nombre Exclusivo de Marca (Sidebar)" hint="Este es el nombre que se verá en el menú lateral de Velox.">
-                        <input
-                          type="text"
-                          className={inputClass}
-                          value={brandName}
-                          onChange={e => setBrandName(e.target.value)}
-                          placeholder="Ej: Velox Plus, LogísticaExpress"
-                        />
-                      </SettingField>
+                       <SettingField label="Nombre Exclusivo de Marca (Sidebar)" hint="Este es el nombre que se verá en el menú lateral de Velox.">
+                         <input
+                           type="text"
+                           className={inputClass}
+                           value={brandName}
+                           onChange={e => setBrandName(e.target.value)}
+                           placeholder="Ej: Velox Plus, LogísticaExpress"
+                         />
+                       </SettingField>
+                    </div>
+
+                    <div className="md:col-span-2">
+                       <SettingField label="URL del Icono / Logo (Imagen)" hint="Pega el enlace directo a tu imagen de marca (PNG/JPG o el que me pasaste).">
+                         <input
+                           type="url"
+                           className={inputClass}
+                           value={logoUrl}
+                           onChange={e => setLogoUrl(e.target.value)}
+                           placeholder="https://tu-imagen.com/logo.png"
+                         />
+                       </SettingField>
                     </div>
 
                     <div className="md:col-span-2">

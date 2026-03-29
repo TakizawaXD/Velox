@@ -7,6 +7,7 @@ import { Orders } from '@/pages/Orders';
 import { MapView } from '@/pages/MapView';
 import { Drivers } from '@/pages/Drivers';
 import { Users } from '@/pages/Users';
+import { Customers } from '@/pages/Customers';
 import { Settings } from '@/pages/Settings';
 import { Register } from '@/pages/Register';
 import { Analytics } from '@/pages/Analytics';
@@ -66,6 +67,7 @@ export default function App() {
             <Route path="/orders" element={<Orders />} />
             <Route path="/map" element={<MapView />} />
             <Route path="/drivers" element={<Drivers />} />
+            <Route path="/customers" element={<Customers />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/users" element={<Users />} />
             <Route path="/settings" element={<Settings />} />

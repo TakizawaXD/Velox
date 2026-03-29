@@ -20,8 +20,8 @@ const navItems = [
   { icon: Package, label: 'Pedidos', path: '/orders' },
   { icon: MapIcon, label: 'Mapa Operacional', path: '/map' },
   { icon: UserCircle, label: 'Repartidores', path: '/drivers' },
+  { icon: Users, label: 'Clientes', path: '/customers' },
   { icon: BarChart2, label: 'Analíticas', path: '/analytics' },
-  { icon: Users, label: 'Usuarios', path: '/users' },
   { icon: Settings, label: 'Configuración', path: '/settings' },
 ];
 
@@ -29,6 +29,7 @@ export function Sidebar({ onClose }: SidebarProps) {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [brandName, setBrandName] = useState('Velox');
+  const [logoUrl, setLogoUrl] = useState('');
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
 
@@ -45,6 +46,7 @@ export function Sidebar({ onClose }: SidebarProps) {
           const data = snap.data();
           if (data.brandName) setBrandName(data.brandName);
           else if (data.company) setBrandName(data.company);
+          if (data.logoUrl) setLogoUrl(data.logoUrl);
           if (data.name) setUserName(data.name);
         }
       },
@@ -82,8 +84,12 @@ export function Sidebar({ onClose }: SidebarProps) {
       {/* Logo */}
       <div className="flex h-16 lg:h-20 items-center px-5 border-b border-white/5">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-neon-blue">
-            <Package className="h-5 w-5 text-white" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-neon-blue overflow-hidden">
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="h-full w-full object-cover" />
+            ) : (
+              <Package className="h-5 w-5 text-white" />
+            )}
           </div>
           <span className="text-xl font-bold tracking-tight text-white truncate" title={brandName}>
             {brandName}

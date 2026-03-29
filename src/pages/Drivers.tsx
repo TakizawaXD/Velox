@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import {
-  Star, UserPlus, Phone, MapPin, Navigation,
-  Truck, Clock, AlertCircle, Activity
+  Star, UserPlus, Navigation,
+  Truck, Clock, Activity, Edit2, Trash2, Search
 } from 'lucide-react';
-import { collection, onSnapshot, query, updateDoc, doc, addDoc, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, updateDoc, doc, addDoc, where, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
+import { toast } from 'react-hot-toast';
 
 const TIPOS_VEHICULO = [
   'Moto (≤ 125cc)', 'Moto (> 125cc)', 'Bicicleta', 'Bicicleta Eléctrica',
@@ -53,9 +55,13 @@ const emptyDriver = {
   vehicleType: '', plate: '', licenseCategory: 'A2',
   city: 'Bogotá D.C.', zone: 'Ciudad Completa',
   emergencyContact: '', emergencyPhone: '', notes: '',
+  points: 0, 
+  maintenanceKm: 0,
+  lastMaintenance: new Date().toISOString().split('T')[0],
 };
 
 export function Drivers() {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [drivers, setDrivers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,6 +69,8 @@ export function Drivers() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newDriver, setNewDriver] = useState(emptyDriver);
   const [isCreating, setIsCreating] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -78,7 +86,43 @@ export function Drivers() {
     try {
       const newStatus = driver.status === 'Offline' ? 'Disponible' : 'Offline';
       await updateDoc(doc(db, 'drivers', driver.id), { status: newStatus });
+      toast.success(`Repartidor ${newStatus}`);
     } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteDriver = async (e: React.MouseEvent, driverId: string) => {
+    e.stopPropagation();
+    if (!window.confirm('¿Estás seguro de eliminar este repartidor?')) return;
+    try {
+      await deleteDoc(doc(db, 'drivers', driverId));
+      toast.success('Repartidor eliminado');
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al eliminar repartidor');
+    }
+  };
+
+  const handleOpenEditModal = (e: React.MouseEvent, driver: any) => {
+    e.stopPropagation();
+    setNewDriver({
+      name: driver.name || '',
+      cedula: driver.cedula || '',
+      phone: driver.phone || '',
+      vehicleType: driver.vehicleType || '',
+      plate: driver.plate || '',
+      licenseCategory: driver.licenseCategory || 'A2',
+      city: driver.city || 'Bogotá D.C.',
+      zone: driver.zone || 'Ciudad Completa',
+      emergencyContact: driver.emergencyContact || '',
+      emergencyPhone: driver.emergencyPhone || '',
+      notes: driver.notes || '',
+      points: driver.points || 0,
+      maintenanceKm: driver.maintenanceKm || 0,
+      lastMaintenance: driver.lastMaintenance || new Date().toISOString().split('T')[0],
+    });
+    setSelectedDriver(driver);
+    setIsEditing(true);
+    setIsModalOpen(true);
   };
 
   const handleCreateDriver = async (e: React.FormEvent) => {
@@ -86,20 +130,38 @@ export function Drivers() {
     if (!currentUser) return;
     setIsCreating(true);
     try {
-      await addDoc(collection(db, 'drivers'), {
-        ...newDriver,
-        vehicle: `${newDriver.vehicleType} · ${newDriver.plate}`,
-        status: 'Disponible',
-        rating: 5.0,
-        deliveries: 0,
-        x: Math.floor(Math.random() * 70) + 15,
-        y: Math.floor(Math.random() * 70) + 15,
-        tenantId: currentUser.uid,
-        createdAt: new Date(),
-      });
+      if (isEditing && selectedDriver) {
+        await updateDoc(doc(db, 'drivers', selectedDriver.id), {
+          ...newDriver,
+          vehicle: `${newDriver.vehicleType} · ${newDriver.plate}`,
+          updatedAt: new Date(),
+        });
+        toast.success('Información actualizada');
+      } else {
+        await addDoc(collection(db, 'drivers'), {
+          ...newDriver,
+          vehicle: `${newDriver.vehicleType} · ${newDriver.plate}`,
+          status: 'Disponible',
+          rating: 5.0,
+          deliveries: 0,
+          x: Math.floor(Math.random() * 70) + 15,
+          y: Math.floor(Math.random() * 70) + 15,
+          points: 0,
+          maintenanceKm: 0,
+          lastMaintenance: new Date().toISOString().split('T')[0],
+          tenantId: currentUser.uid,
+          createdAt: new Date(),
+        });
+        toast.success('Repartidor registrado');
+      }
       setIsModalOpen(false);
       setNewDriver(emptyDriver);
-    } catch (err) { console.error(err); }
+      setIsEditing(false);
+      setSelectedDriver(null);
+    } catch (err) { 
+      console.error(err); 
+      toast.error('Error al guardar datos');
+    }
     finally { setIsCreating(false); }
   };
 
@@ -109,7 +171,6 @@ export function Drivers() {
       setNewDriver({ ...newDriver, [key]: e.target.value }),
   });
 
-  const statusColor = (s: string) => s === 'Disponible' ? 'text-success' : s === 'Entregando' ? 'text-primary' : 'text-textMuted';
   const statusBg = (s: string) => s === 'Disponible' ? 'bg-success' : s === 'Entregando' ? 'bg-primary' : 'bg-textMuted/30';
 
   const stats = {
@@ -119,17 +180,35 @@ export function Drivers() {
     avgRating: drivers.length ? (drivers.reduce((a, d) => a + (d.rating || 0), 0) / drivers.length).toFixed(1) : '0',
   };
 
+  const filteredDrivers = drivers.filter(d => 
+    d.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    d.plate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    d.city?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-text">Flota de Repartidores</h1>
-          <p className="text-textMuted text-sm">Gestión de conductores y mensajeros en Colombia</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-text tracking-tight">Flota de Repartidores</h1>
+          <p className="text-textMuted text-sm font-medium">Gestión de conductores y mensajeros en Colombia</p>
         </div>
-        <Button className="shadow-neon-blue gap-2 w-fit" onClick={() => setIsModalOpen(true)}>
+        <Button className="shadow-neon-blue gap-2" onClick={() => { setIsEditing(false); setNewDriver(emptyDriver); setIsModalOpen(true); }}>
           <UserPlus size={16} /> Añadir Repartidor
         </Button>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-textMuted" />
+        <input
+          type="text"
+          placeholder="Buscar por nombre, placa o ciudad..."
+          className="w-full bg-surface border border-white/10 text-sm text-text placeholder:text-textMuted rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-primary/50"
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+        />
       </div>
 
       {/* KPIs */}
@@ -156,7 +235,7 @@ export function Drivers() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <AnimatePresence>
-            {drivers.map((driver, i) => (
+            {filteredDrivers.map((driver, i) => (
               <motion.div
                 key={driver.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -168,77 +247,77 @@ export function Drivers() {
                   className="glass-panel hover:border-primary/30 transition-all group overflow-hidden cursor-pointer p-0 relative" 
                   onClick={() => setSelectedDriver(driver)}
                 >
-                  {/* Status Indicator Bar */}
                   <div className={`h-1 w-full ${statusBg(driver.status)} opacity-80`} />
-                  
                   <div className="p-6">
-                    {/* Cabecera */}
                     <div className="flex items-start justify-between mb-6">
                       <div className="flex items-center gap-4">
-                        <div className="relative">
-                          <div className="w-16 h-16 rounded-2xl overflow-hidden bg-surface flex items-center justify-center border-2 border-white/5 group-hover:border-primary/20 transition-all shadow-xl">
-                            <span className="text-2xl font-black text-text/80">
-                              {driver.name?.charAt(0)?.toUpperCase() || '?'}
-                            </span>
-                          </div>
-                          <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-4 border-[#09090b] ${statusBg(driver.status)} shadow-lg`} />
+                        <div className="w-16 h-16 rounded-2xl overflow-hidden bg-surface flex items-center justify-center border-2 border-white/5 group-hover:border-primary/20 transition-all shadow-xl font-black text-text/80 text-2xl">
+                          {driver.name?.charAt(0)?.toUpperCase()}
                         </div>
                         <div>
                           <h3 className="font-black text-text text-lg leading-tight truncate max-w-[140px]">{driver.name}</h3>
                           <div className="flex items-center text-xs font-bold text-textMuted gap-2 mt-1">
-                            <span className="flex items-center gap-1 text-yellow-400">
-                              <Star size={12} className="fill-yellow-400" />
-                              {driver.rating || 5.0}
-                            </span>
+                            <span className="flex items-center gap-1 text-yellow-400"><Star size={12} className="fill-yellow-400" /> {driver.rating || 5.0}</span>
                             <span className="opacity-20">|</span>
                             <span>{driver.deliveries || 0} envíos</span>
                           </div>
                         </div>
                       </div>
-                      <Badge
-                        variant={driver.status === 'Disponible' ? 'success' : driver.status === 'Offline' ? 'default' : 'primary'}
-                        className={`text-[10px] font-black tracking-widest uppercase px-2 shadow-sm ${driver.status === 'Entregando' ? 'animate-pulse' : ''}`}
-                      >
+                      <Badge variant={driver.status === 'Disponible' ? 'success' : driver.status === 'Offline' ? 'default' : 'primary'}>
                         {driver.status}
                       </Badge>
                     </div>
 
-                    {/* Stats mini grid */}
+                    {/* Optimization Metrics */}
+                    <div className="mb-4 flex items-center justify-between px-1">
+                       <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded-full bg-yellow-400/10 flex items-center justify-center text-yellow-500">
+                             <Activity size={12} />
+                          </div>
+                          <span className="text-[11px] font-black text-text uppercase tracking-wider">{driver.points || 0} Puntos Velox</span>
+                       </div>
+                       <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-textMuted font-bold uppercase">Eficiencia</span>
+                          <div className="w-12 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                             <div className="h-full bg-primary" style={{ width: `${Math.min((driver.deliveries || 0) * 5, 100)}%` }} />
+                          </div>
+                       </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3 mb-6">
                       <div className="bg-white/5 rounded-xl p-3 border border-white/5">
                         <p className="text-[10px] text-textMuted font-bold uppercase tracking-widest mb-1">Vehículo</p>
-                        <p className="text-xs font-bold text-text truncate">{driver.vehicle?.split('·')[0] || driver.vehicleType}</p>
+                        <p className="text-xs font-bold text-text truncate">{driver.vehicleType || '?'}</p>
                       </div>
-                      <div className="bg-white/5 rounded-xl p-3 border border-white/5">
-                        <p className="text-[10px] text-textMuted font-bold uppercase tracking-widest mb-1">Placa</p>
-                        <p className="text-xs font-bold text-primary tracking-widest">{driver.plate || 'N/A'}</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 mb-6">
-                      <div className="flex items-center gap-3 text-xs text-textMuted">
-                        <MapPin size={14} className="text-primary/60" />
-                        <span className="font-medium">{driver.city} · <span className="text-text/60 italic">{driver.zone}</span></span>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-textMuted">
-                        <Phone size={14} className="text-primary/60" />
-                        <span className="font-medium">{driver.phone || 'Sin contacto'}</span>
+                      <div className="bg-white/5 rounded-xl p-3 border border-white/5 overflow-hidden relative">
+                        <p className="text-[10px] text-textMuted font-bold uppercase tracking-widest mb-1">Cuidado Mecánico</p>
+                        <div className="flex items-center gap-2">
+                           <div className={`h-1.5 flex-1 rounded-full ${ (driver.maintenanceKm || 0) > 4500 ? 'bg-danger' : 'bg-success/50' } overflow-hidden`}>
+                              <div className="h-full bg-success" style={{ width: `${Math.max(0, 100 - (driver.maintenanceKm || 0) / 50)}%` }} />
+                           </div>
+                           <span className="text-[10px] font-bold text-text/60">{(driver.maintenanceKm || 0)}km</span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Acciones Rápidas en Card */}
                     <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-                      <Button variant="outline" className="flex-1 text-[11px] font-black uppercase tracking-wider rounded-xl h-10 gap-2 border-white/10 hover:bg-primary/10 hover:border-primary/20 hover:text-primary transition-all">
+                      <Button 
+                        variant="outline" 
+                        className="flex-1 text-[11px] font-black uppercase tracking-wider rounded-xl h-10 gap-2 border-white/10 hover:bg-primary/10 hover:border-primary/20 hover:text-primary transition-all"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate('/map', { state: { selectedDriverId: driver.id } });
+                        }}
+                      >
                         <Navigation size={14} /> Rastrear
                       </Button>
-                      <button
-                        onClick={() => handleToggleStatus(driver)}
-                        className={`px-4 rounded-xl font-bold text-xs transition-all ${
-                          driver.status === 'Offline' 
-                          ? 'bg-primary text-white shadow-neon-blue' 
-                          : 'bg-white/5 text-textMuted hover:bg-white/10'
-                        }`}
-                      >
+                      <Button variant="ghost" size="icon" className="h-10 w-10 text-primary border border-white/10" onClick={(e) => handleOpenEditModal(e, driver)}>
+                        <Edit2 size={16} />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-10 w-10 text-danger border border-white/10" onClick={(e) => handleDeleteDriver(e, driver.id)}>
+                        <Trash2 size={16} />
+                      </Button>
+                      <button onClick={() => handleToggleStatus(driver)} className={`px-4 rounded-xl font-bold text-xs ${driver.status === 'Offline' ? 'bg-primary text-white' : 'bg-white/5 text-textMuted'}`}>
                         {driver.status === 'Offline' ? 'Activar' : 'Cerrar'}
                       </button>
                     </div>
@@ -247,168 +326,49 @@ export function Drivers() {
               </motion.div>
             ))}
           </AnimatePresence>
-
-          {drivers.length === 0 && (
-            <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center py-20 bg-surfaceHover/20 rounded-2xl border border-dashed border-white/10">
-              <div className="mx-auto w-16 h-16 bg-surfaceHover rounded-full flex items-center justify-center mb-4">
-                <Truck size={28} className="text-textMuted" />
-              </div>
-              <h3 className="text-lg font-semibold text-text mb-2">Flota Vacía</h3>
-              <p className="text-textMuted text-sm max-w-sm mx-auto mb-6">
-                Registra tu primer repartidor para comenzar a asignar pedidos en Colombia.
-              </p>
-              <Button onClick={() => setIsModalOpen(true)} className="shadow-neon-blue gap-2">
-                <UserPlus size={16} /> Registrar Primer Conductor
-              </Button>
-            </div>
-          )}
         </div>
       )}
 
-      {/* ===================== MODAL DETALLE ===================== */}
+      {/* ===================== MODALES ===================== */}
       <Modal isOpen={!!selectedDriver} onClose={() => setSelectedDriver(null)} title="Perfil del Repartidor">
-        {selectedDriver && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-4 pb-4 border-b border-white/10">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-2xl font-bold text-white shadow-neon-blue">
-                {selectedDriver.name?.charAt(0)?.toUpperCase()}
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-text">{selectedDriver.name}</h3>
-                <div className={`flex items-center gap-1.5 text-sm ${statusColor(selectedDriver.status)}`}>
-                  <span className={`w-2 h-2 rounded-full ${statusBg(selectedDriver.status)}`} />
-                  {selectedDriver.status}
-                </div>
-              </div>
-              <div className="ml-auto text-right">
-                <div className="flex items-center gap-1 justify-end">
-                  <Star size={16} className="text-yellow-400 fill-yellow-400" />
-                  <span className="text-xl font-bold text-text">{selectedDriver.rating || 5.0}</span>
-                </div>
-                <p className="text-xs text-textMuted">{selectedDriver.deliveries || 0} entregas</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { l: 'Cédula de Ciudadanía', v: selectedDriver.cedula || '-' },
-                { l: 'Teléfono', v: selectedDriver.phone || '-' },
-                { l: 'Tipo de Vehículo', v: selectedDriver.vehicleType || selectedDriver.vehicle || '-' },
-                { l: 'Placa', v: selectedDriver.plate || '-' },
-                { l: 'Licencia de Conducción', v: selectedDriver.licenseCategory || '-' },
-                { l: 'Ciudad Base', v: selectedDriver.city || '-' },
-                { l: 'Zona de Cobertura', v: selectedDriver.zone || '-' },
-                { l: 'Contacto Emergencia', v: selectedDriver.emergencyContact || '-' },
-                { l: 'Tel. Emergencia', v: selectedDriver.emergencyPhone || '-' },
-              ].map(({ l, v }) => (
-                <div key={l} className="bg-surfaceHover/40 rounded-xl p-3 border border-white/5">
-                  <p className="text-[10px] text-textMuted uppercase tracking-wider mb-0.5">{l}</p>
-                  <p className="font-medium text-sm text-text">{v}</p>
-                </div>
-              ))}
-            </div>
-
-            {selectedDriver.notes && (
-              <div className="bg-primary/5 rounded-xl p-3 border border-primary/10">
-                <p className="text-[10px] text-primary uppercase tracking-wider mb-1">Notas</p>
-                <p className="text-sm text-text">{selectedDriver.notes}</p>
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-2">
-              <Button
-                variant={selectedDriver.status === 'Offline' ? 'primary' : 'secondary'}
-                className="flex-1"
-                onClick={() => { handleToggleStatus(selectedDriver); setSelectedDriver(null); }}
-              >
-                {selectedDriver.status === 'Offline' ? '✓ Activar Repartidor' : 'Poner Offline'}
-              </Button>
+        {selectedDriver && <div className="space-y-4">
+          <div className="p-4 bg-surfaceHover/40 rounded-2xl space-y-2">
+            <h3 className="text-xl font-bold text-text">{selectedDriver.name}</h3>
+            <p className="text-sm text-textMuted italic">{selectedDriver.city} · {selectedDriver.zone}</p>
+            <div className="flex gap-4 pt-2">
+               <div className="flex-1 p-3 bg-white/5 rounded-xl border border-white/5 text-center">
+                  <p className="text-[10px] text-textMuted uppercase font-bold mb-1">Cédula</p>
+                  <p className="text-sm font-bold text-text">{selectedDriver.cedula || '-'}</p>
+               </div>
+               <div className="flex-1 p-3 bg-white/5 rounded-xl border border-white/5 text-center">
+                  <p className="text-[10px] text-textMuted uppercase font-bold mb-1">Teléfono</p>
+                  <p className="text-sm font-bold text-text">{selectedDriver.phone || '-'}</p>
+               </div>
             </div>
           </div>
-        )}
+        </div>}
       </Modal>
 
-      {/* ===================== MODAL NUEVO REPARTIDOR ===================== */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Registrar Nuevo Repartidor">
+      <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setIsEditing(false); }} title={isEditing ? 'Editar Repartidor' : 'Registrar Nuevo Repartidor'}>
         <form onSubmit={handleCreateDriver} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
           <SectionTitle>👤 Datos Personales</SectionTitle>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FieldGroup label="Nombre Completo *">
-              <input required className={inputCls} placeholder="Ej. Andrés Felipe García" {...field('name')} />
-            </FieldGroup>
-            <FieldGroup label="Cédula de Ciudadanía *">
-              <input required className={inputCls} placeholder="Ej. 1020304050" {...field('cedula')} />
-            </FieldGroup>
-            <FieldGroup label="Teléfono Celular *">
-              <input required className={inputCls} type="tel" placeholder="+57 310 000 0000" {...field('phone')} />
-            </FieldGroup>
-            <FieldGroup label="Ciudad Base *">
-              <select required className={inputCls} {...field('city')}>
-                {CIUDADES_CO.map(c => <option key={c}>{c}</option>)}
-              </select>
-            </FieldGroup>
+            <FieldGroup label="Nombre *"><input required className={inputCls} {...field('name')} /></FieldGroup>
+            <FieldGroup label="Cédula *"><input required className={inputCls} {...field('cedula')} /></FieldGroup>
+            <FieldGroup label="Teléfono *"><input required className={inputCls} type="tel" {...field('phone')} /></FieldGroup>
+            <FieldGroup label="Ciudad *"><select className={inputCls} {...field('city')}>{CIUDADES_CO.map(c => <option key={c}>{c}</option>)}</select></FieldGroup>
           </div>
-
           <SectionTitle>🚗 Datos del Vehículo</SectionTitle>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FieldGroup label="Tipo de Vehículo *">
-              <select required className={inputCls} {...field('vehicleType')}>
-                <option value="">Seleccionar...</option>
-                {TIPOS_VEHICULO.map(t => <option key={t}>{t}</option>)}
-              </select>
-            </FieldGroup>
-            <FieldGroup label="Placa del Vehículo">
-              <input
-                className={inputCls + ' uppercase'}
-                placeholder="Ej. ABC 123"
-                {...field('plate')}
-                onChange={e => setNewDriver({ ...newDriver, plate: e.target.value.toUpperCase() })}
-              />
-            </FieldGroup>
-            <FieldGroup label="Categoría de Licencia *">
-              <select required className={inputCls} {...field('licenseCategory')}>
-                {LICENCIAS_CO.map(l => <option key={l}>{l}</option>)}
-              </select>
-            </FieldGroup>
-            <FieldGroup label="Zona de Cobertura *">
-              <select required className={inputCls} {...field('zone')}>
-                {ZONAS.map(z => <option key={z}>{z}</option>)}
-              </select>
-            </FieldGroup>
+            <FieldGroup label="Tipo Vehículo *"><select required className={inputCls} {...field('vehicleType')}>{TIPOS_VEHICULO.map(t => <option key={t}>{t}</option>)}</select></FieldGroup>
+            <FieldGroup label="Placa"><input className={inputCls + ' uppercase'} {...field('plate')} /></FieldGroup>
+            <FieldGroup label="Licencia *"><select required className={inputCls} {...field('licenseCategory')}>{LICENCIAS_CO.map(l => <option key={l}>{l}</option>)}</select></FieldGroup>
+            <FieldGroup label="Zona *"><select required className={inputCls} {...field('zone')}>{ZONAS.map(z => <option key={z}>{z}</option>)}</select></FieldGroup>
           </div>
-
-          <SectionTitle>📞 Contacto de Emergencia</SectionTitle>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FieldGroup label="Nombre del Contacto">
-              <input className={inputCls} placeholder="Ej. María García (mamá)" {...field('emergencyContact')} />
-            </FieldGroup>
-            <FieldGroup label="Teléfono de Emergencia">
-              <input className={inputCls} type="tel" placeholder="+57 311 000 0000" {...field('emergencyPhone')} />
-            </FieldGroup>
-            <div className="sm:col-span-2">
-              <FieldGroup label="Notas / Observaciones">
-                <textarea
-                  className={inputCls + ' resize-none h-16'}
-                  placeholder="Ej. Solo disponible lunes a sábado, conoce bien el sur de Bogotá"
-                  value={newDriver.notes}
-                  onChange={e => setNewDriver({ ...newDriver, notes: e.target.value })}
-                />
-              </FieldGroup>
-            </div>
-          </div>
-
-          <div className="bg-primary/5 border border-primary/10 rounded-xl p-3 flex gap-2 text-xs text-textMuted">
-            <AlertCircle size={14} className="text-primary shrink-0 mt-0.5" />
-            Al registrar un repartidor confirmas que verificaste su documentación (cédula, SOAT, Tecnomecánica) según normativa Colombia.
-          </div>
-
           <div className="flex gap-3 justify-end pt-2 border-t border-white/5">
             <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-            <Button type="submit" isLoading={isCreating} className="shadow-neon-blue gap-2">
-              <UserPlus size={15} /> Registrar en Flota
+            <Button type="submit" isLoading={isCreating} className="shadow-neon-blue">
+              {isEditing ? 'Guardar Cambios' : 'Registrar en Flota'}
             </Button>
           </div>
         </form>

@@ -46,7 +46,6 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     );
 
     if (asChild && React.isValidElement(children)) {
-      const Child = children.type as any;
       return (
         <motion.div
           whileHover={{ scale: 1.02, y: -2 }}

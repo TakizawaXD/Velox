@@ -1,16 +1,52 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="es" class="dark">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#000000" />
+    
+    <!-- Primordial SEO -->
+    <title>Velox Hub — Logística Supreme v4 | Inteligencia Operativa</title>
+    <meta name="description" content="Velox Supreme v4 es la plataforma SaaS definitiva para la gestión logística en Colombia. Control de flota, facturación automática y rastreo en tiempo real con diseño Absolute Black." />
+    <meta name="keywords" content="logística, colombia, saas, mensajería, transporte, facturación, rastreo, velox, supreme v4" />
+    <meta name="author" content="Velox Technologies" />
+    
+    <!-- Favicon & Icons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>velox</title>
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    
+    <!-- Social Media Tracking (Open Graph) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Velox Hub — Logística Supreme v4" />
+    <meta property="og:description" content="Optimiza tu última milla con la plataforma logística más avanzada del mercado. Poder, diseño y velocidad." />
+    <meta property="og:image" content="/icons.svg" />
+    <meta property="og:url" content="https://velox-logistica.netlify.app" />
+    
+    <!-- Twitter Branding -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Velox Supreme — Logística del Futuro" />
+    <meta name="twitter:description" content="Gestión logística empresarial con arquitectura multi-tenant y diseño premium." />
+    <meta name="twitter:image" content="/icons.svg" />
+
+    <!-- Performance: Preconnect to Font Services -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
     <script>
-      // Deshabilitar el mensaje de React DevTools en desarrollo
-      window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = { isDisabled: true };
+      // Deshabilitar el mensaje de React DevTools en producción para limpieza visual
+      if (typeof window.__REACT_DEVTOOLS_GLOBAL_HOOK__ === 'object') {
+        window.__REACT_DEVTOOLS_GLOBAL_HOOK__.isDisabled = true;
+      }
     </script>
   </head>
-  <body>
+  <body class="bg-[#030303]">
+    <noscript>
+      <div style="background-color: #030303; color: #ffffff; padding: 2rem; text-align: center; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+        <h1 style="color: #3b82f6; margin-bottom: 1rem;">Velox Hub — Logística Supreme</h1>
+        <p>Esta aplicación requiere JavaScript para funcionar correctamente.</p>
+        <p style="opacity: 0.6; font-size: 0.8rem; margin-top: 2rem;">© 2026 Velox Technologies</p>
+      </div>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
